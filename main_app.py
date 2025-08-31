@@ -347,7 +347,7 @@ class VentanaPrincipal(QMainWindow):
             self.ui.actionDiagrama_de_iteracion.setEnabled(True)
 
     def cambiar_pagina_analisis(self, texto):
-        self._apagar_capa_fibras()
+        self.invalidar_resultados_y_apagar_fibras()
         if texto.lower() == "columna":
             self.ui.stackedWidget.setCurrentWidget(self.ui.pg_p_columna)
             self.mostrar_columna()
@@ -413,6 +413,8 @@ class VentanaPrincipal(QMainWindow):
     def actualizar_material_hormigon_data(self, datos):
         self.material_hormigon_data = datos.copy()
         self.actualizar_lineedit_materiales()
+        # 🔴 Invalida resultados para forzar "Calcular" otra vez
+        self.invalidar_resultados_y_apagar_fibras()
 
     def abrir_material_acero(self):
         ventana = VentanaMaterialAcero(self.material_acero_data)
@@ -424,6 +426,8 @@ class VentanaPrincipal(QMainWindow):
         if datos.get("def_ultima_acero") is not None:
             self.material_hormigon_data["def_ultima_confinada"] = datos["def_ultima_acero"]
         self.actualizar_lineedit_materiales()
+         # 🔴 Invalida resultados para forzar "Calcular" otra vez
+        self.invalidar_resultados_y_apagar_fibras()
 
     def abrir_documentacion(self):
         self.ventana_ayuda.exec()
@@ -442,6 +446,9 @@ class VentanaPrincipal(QMainWindow):
 
         self.ventana_definir_asce.datos_guardados_callback = self._wrap_dirty(self.actualizar_asce_data)
         self.ventana_definir_asce.exec()
+
+    def actualizar_asce_data(self, datos):
+        self.asce_data = datos.copy()
 
     def _apagar_capa_fibras(self):
         accion = getattr(self.ui, "actionCapas_de_Fibras_2", None)
