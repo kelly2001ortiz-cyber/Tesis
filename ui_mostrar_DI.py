@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'mostrar_DIywpgHj.ui'
+## Form generated from reading UI file 'mostrar_DIhzLlJV.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.4.3
 ##
@@ -23,7 +23,7 @@ class Ui_mostrar_DI(object):
     def setupUi(self, mostrar_DI):
         if not mostrar_DI.objectName():
             mostrar_DI.setObjectName(u"mostrar_DI")
-        mostrar_DI.resize(984, 627)
+        mostrar_DI.resize(995, 627)
         sizePolicy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
@@ -50,16 +50,18 @@ class Ui_mostrar_DI(object):
         __qtablewidgetitem4 = QTableWidgetItem()
         self.tablePuntosControl.setVerticalHeaderItem(2, __qtablewidgetitem4)
         self.tablePuntosControl.setObjectName(u"tablePuntosControl")
-        self.tablePuntosControl.setGeometry(QRect(10, 30, 342, 115))
-        self.tablePuntosControl.setMinimumSize(QSize(342, 115))
-        self.tablePuntosControl.setMaximumSize(QSize(342, 115))
+        self.tablePuntosControl.setGeometry(QRect(10, 30, 340, 113))
+        self.tablePuntosControl.setMinimumSize(QSize(340, 113))
+        self.tablePuntosControl.setMaximumSize(QSize(340, 113))
         self.tablePuntosControl.setFocusPolicy(Qt.NoFocus)
-        self.tablePuntosControl.setFrameShape(QFrame.StyledPanel)
-        self.tablePuntosControl.setFrameShadow(QFrame.Sunken)
+        self.tablePuntosControl.setLayoutDirection(Qt.LeftToRight)
+        self.tablePuntosControl.setFrameShape(QFrame.NoFrame)
+        self.tablePuntosControl.setFrameShadow(QFrame.Plain)
         self.tablePuntosControl.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.tablePuntosControl.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.tablePuntosControl.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tablePuntosControl.setSelectionMode(QAbstractItemView.NoSelection)
+        self.tablePuntosControl.setTextElideMode(Qt.ElideMiddle)
         self.tablePuntosControl.setShowGrid(True)
         self.tablePuntosControl.setGridStyle(Qt.SolidLine)
         self.tablePuntosControl.setSortingEnabled(False)
@@ -91,7 +93,7 @@ class Ui_mostrar_DI(object):
         self.cuadricula_seccionDI.setGeometry(QRect(10, 30, 348, 348))
         self.cuadricula_DI = QWidget(mostrar_DI)
         self.cuadricula_DI.setObjectName(u"cuadricula_DI")
-        self.cuadricula_DI.setGeometry(QRect(400, 20, 571, 591))
+        self.cuadricula_DI.setGeometry(QRect(410, 20, 571, 591))
         self.cuadricula_DI.setMinimumSize(QSize(571, 591))
         self.cuadricula_DI.setMaximumSize(QSize(571, 591))
 

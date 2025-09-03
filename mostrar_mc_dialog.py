@@ -175,29 +175,37 @@ class VentanaMostrarMC(QDialog):
         self.canvas.draw_idle()
 
     def on_mouse_move(self, event):
-        if not event.inaxes or not self.x_total:
+        # Limpiar si el mouse no está sobre el eje o no hay datos
+        if not getattr(event, "inaxes", False) or not self.x_total:
             if self.marker:
                 self.marker.set_data([], [])
             self.lbl_coordenadas.setText("Desplaza el mouse sobre la curva para ver coordenadas.")
             self.canvas.draw_idle()
             return
 
-        x_mouse = event.xdata
-        x_all = np.array(self.x_total, dtype=float)
-        y_all = np.array(self.y_total, dtype=float)
+        if event.xdata is None or event.ydata is None:
+            return
 
-        # Punto más cercano en X (tolerancia 2% del rango)
-        idx = (np.abs(x_all - x_mouse)).argmin()
-        x_curve = x_all[idx]
-        y_curve = y_all[idx]
-        tol_x = max(1e-12, (x_all.max() - x_all.min()) * 0.02)
+        # Transformar todos los puntos a pixeles (pantalla)
+        pts = np.column_stack([self.x_total, self.y_total]).astype(float)
+        pts_disp = self.ax.transData.transform(pts)
 
-        if abs(x_mouse - x_curve) > tol_x:
+        # Mouse en pixeles
+        xm, ym = self.ax.transData.transform((float(event.xdata), float(event.ydata)))
+
+        # Distancia euclídea en pixeles; umbral para “enganchar”
+        d2 = (pts_disp[:, 0] - xm) ** 2 + (pts_disp[:, 1] - ym) ** 2
+        idx = int(np.argmin(d2))
+        r_pix = 12.0
+
+        if d2[idx] <= r_pix * r_pix:
+            x_curve = float(self.x_total[idx])
+            y_curve = float(self.y_total[idx])
+            self.marker.set_data([x_curve], [y_curve])
+            # Mantengo tu formato original en este archivo
+            self.lbl_coordenadas.setText(f"θ = {x_curve:.3f}     M = {y_curve:.3f}")
+        else:
             self.marker.set_data([], [])
             self.lbl_coordenadas.setText("Desplaza el mouse sobre la curva para ver coordenadas.")
-        else:
-            self.marker.set_data([x_curve], [y_curve])
-            # Ajusta formato a tus unidades
-            self.lbl_coordenadas.setText(f"θ = {x_curve:.3f}     M = {y_curve:.3f}")
 
         self.canvas.draw_idle()

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'esfuerzo_deformacion_aceroODDxlR.ui'
+## Form generated from reading UI file 'esfuerzo_deformacion_aceroyfSsqj.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.4.3
 ##
@@ -53,12 +53,26 @@ class Ui_esfuerzo_deformacion_acero(object):
         __qtablewidgetitem6.setTextAlignment(Qt.AlignCenter);
         self.tablePuntosControl.setItem(1, 0, __qtablewidgetitem6)
         self.tablePuntosControl.setObjectName(u"tablePuntosControl")
-        self.tablePuntosControl.setGeometry(QRect(10, 30, 299, 115))
-        self.tablePuntosControl.setMinimumSize(QSize(299, 115))
-        self.tablePuntosControl.setMaximumSize(QSize(299, 115))
+        self.tablePuntosControl.setGeometry(QRect(10, 30, 297, 113))
+        self.tablePuntosControl.setMinimumSize(QSize(297, 113))
+        self.tablePuntosControl.setMaximumSize(QSize(297, 113))
         self.tablePuntosControl.setFocusPolicy(Qt.NoFocus)
-        self.tablePuntosControl.setFrameShape(QFrame.StyledPanel)
-        self.tablePuntosControl.setFrameShadow(QFrame.Sunken)
+        self.tablePuntosControl.setStyleSheet(u"QTableView::item, QTableWidget::item {\n"
+"    padding: 0px;\n"
+"    margin: 0px;\n"
+"    border: none;\n"
+"    outline: none;\n"
+"}\n"
+"QTableView::item:pressed, QTableWidget::item:pressed,\n"
+"QTableView::item:hover, QTableWidget::item:hover {\n"
+"    margin: 0px;\n"
+"    padding: 0px;\n"
+"    border: none;\n"
+"    background: transparent;\n"
+"}\n"
+"")
+        self.tablePuntosControl.setFrameShape(QFrame.NoFrame)
+        self.tablePuntosControl.setFrameShadow(QFrame.Plain)
         self.tablePuntosControl.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.tablePuntosControl.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.tablePuntosControl.setEditTriggers(QAbstractItemView.NoEditTriggers)

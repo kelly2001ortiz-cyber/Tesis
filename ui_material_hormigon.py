@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'material_hormigonTSjHHt.ui'
+## Form generated from reading UI file 'material_hormigonZQPQkH.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.4.3
 ##
@@ -74,7 +74,7 @@ class Ui_material_hormigon(object):
         self.label_19.setGeometry(QRect(30, 90, 201, 16))
         self.btn_mostrar_diagrama_ed_hormigon = QPushButton(self.groupBox_2)
         self.btn_mostrar_diagrama_ed_hormigon.setObjectName(u"btn_mostrar_diagrama_ed_hormigon")
-        self.btn_mostrar_diagrama_ed_hormigon.setGeometry(QRect(73, 130, 221, 24))
+        self.btn_mostrar_diagrama_ed_hormigon.setGeometry(QRect(70, 130, 225, 24))
         self.btn_cancelar_hormigon = QPushButton(material_hormigon)
         self.btn_cancelar_hormigon.setObjectName(u"btn_cancelar_hormigon")
         self.btn_cancelar_hormigon.setGeometry(QRect(193, 330, 75, 24))
@@ -105,7 +105,7 @@ class Ui_material_hormigon(object):
         self.def_ultima_sin_confinar.setText(QCoreApplication.translate("material_hormigon", u"0.0038", None))
         self.def_ultima_confinada.setText(QCoreApplication.translate("material_hormigon", u"0.09", None))
         self.label_19.setText(QCoreApplication.translate("material_hormigon", u"Def. \u00faltima confinada, \u03b5cu", None))
-        self.btn_mostrar_diagrama_ed_hormigon.setText(QCoreApplication.translate("material_hormigon", u"Mostar Diagrama Esfuerzo Deformaci\u00f3n", None))
+        self.btn_mostrar_diagrama_ed_hormigon.setText(QCoreApplication.translate("material_hormigon", u"Mostrar Diagrama Esfuerzo Deformaci\u00f3n", None))
         self.btn_cancelar_hormigon.setText(QCoreApplication.translate("material_hormigon", u"Cancelar", None))
         self.btn_guardar_hormigon.setText(QCoreApplication.translate("material_hormigon", u"Guardar", None))
     # retranslateUi

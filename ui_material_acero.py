@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'material_acerozQeiES.ui'
+## Form generated from reading UI file 'material_aceroRiGKNm.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.4.3
 ##
@@ -82,7 +82,7 @@ class Ui_material_acero(object):
         self.label_7.setGeometry(QRect(300, 30, 51, 16))
         self.btn_mostrar_diagrama_ed_acero = QPushButton(self.groupBox_2)
         self.btn_mostrar_diagrama_ed_acero.setObjectName(u"btn_mostrar_diagrama_ed_acero")
-        self.btn_mostrar_diagrama_ed_acero.setGeometry(QRect(70, 160, 221, 24))
+        self.btn_mostrar_diagrama_ed_acero.setGeometry(QRect(70, 160, 225, 24))
         self.btn_guardar_acero = QPushButton(material_acero)
         self.btn_guardar_acero.setObjectName(u"btn_guardar_acero")
         self.btn_guardar_acero.setGeometry(QRect(110, 360, 75, 24))

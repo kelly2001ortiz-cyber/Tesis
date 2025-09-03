@@ -41,7 +41,7 @@ class VentanaMostrarDI(QDialog):
         self.ui = Ui_mostrar_DI()
         self.ui.setupUi(self)
         self.setFixedSize(self.size())
-
+       
         # ===== Datos de entrada =====
         self._di_matriz = None if di_matriz is None else np.asarray(di_matriz, dtype=float)
         self._series = di_series or {}
@@ -208,7 +208,9 @@ class VentanaMostrarDI(QDialog):
             # Limpiar si no hay datos
             for r in range(3):
                 for c in range(2):
-                    tabla.setItem(r, c, QTableWidgetItem(""))
+                    item = QTableWidgetItem("")
+                    item.setTextAlignment(Qt.AlignCenter)
+                    tabla.setItem(r, c, item)
             return
 
         # di_matriz: columnas [c, φM, φP, M, P]
@@ -227,7 +229,9 @@ class VentanaMostrarDI(QDialog):
         if n == 0:
             for r in range(3):
                 for c in range(2):
-                    tabla.setItem(r, c, QTableWidgetItem(""))
+                    item = QTableWidgetItem("")
+                    item.setTextAlignment(Qt.AlignCenter)
+                    tabla.setItem(r, c, item)
             return
 
         # Índices característicos
@@ -235,16 +239,18 @@ class VentanaMostrarDI(QDialog):
         idx_last = n - 1
         idx_mmax = int(np.nanargmax(np.abs(M_arr)))  # máximo por magnitud
 
-        # Helper para colocar valores formateados
+        # Helper para colocar valores formateados y centrados
         def _set_row(r, p_val, m_val):
-            p_text = f"{p_val:.3f}"
-            m_text = f"{m_val:.3f}"
-            tabla.setItem(r, 0, QTableWidgetItem(p_text))
-            tabla.setItem(r, 1, QTableWidgetItem(m_text))
+            p_item = QTableWidgetItem(f"{p_val:.3f}")
+            m_item = QTableWidgetItem(f"{m_val:.3f}")
+            p_item.setTextAlignment(Qt.AlignCenter)
+            m_item.setTextAlignment(Qt.AlignCenter)
+            tabla.setItem(r, 0, p_item)
+            tabla.setItem(r, 1, m_item)
 
         _set_row(0, P_arr[idx_first], M_arr[idx_first])
-        _set_row(1, P_arr[idx_mmax],  M_arr[idx_mmax])
-        _set_row(2, P_arr[idx_last],  M_arr[idx_last])
+        _set_row(1, P_arr[idx_mmax], M_arr[idx_mmax])
+        _set_row(2, P_arr[idx_last], M_arr[idx_last])
 
     # ---------- Dibujo del DI + preparación del hover ----------
     def _dibujar_di(self):
