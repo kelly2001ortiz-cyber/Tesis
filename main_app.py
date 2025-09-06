@@ -85,6 +85,8 @@ class VentanaPrincipal(QMainWindow):
         self.ui.actionProyecto.triggered.connect(self.mostrar_proyecto)
         self.ui.actionSeccion.triggered.connect(self.mostrar_seccion)
         self.ui.seccion_analisis.currentTextChanged.connect(self.cambiar_pagina_analisis)
+        self.ui.seccion_analisis.currentTextChanged.connect(self.invalidar_resultados_y_apagar_fibras)
+        self.ui.direccion_analisis.currentTextChanged.connect(self.invalidar_resultados_y_apagar_fibras)
         self.ui.actionCapas_de_Fibras_2.triggered.connect(self.mostrar_fibras)
 
         # === Acciones de archivo ===
@@ -335,7 +337,6 @@ class VentanaPrincipal(QMainWindow):
 
     def actualizar_direccion(self):
         tipo = self.ui.seccion_analisis.currentText()
-
         if tipo == "Viga":
             # Deshabilitar y fijar en Dirección Y
             self.ui.direccion_analisis.setCurrentText("Dirección Y")  # ojo: usa exactamente como está escrito en tu combobox
@@ -347,7 +348,6 @@ class VentanaPrincipal(QMainWindow):
             self.ui.actionDiagrama_de_iteracion.setEnabled(True)
 
     def cambiar_pagina_analisis(self, texto):
-        self.invalidar_resultados_y_apagar_fibras()
         if texto.lower() == "columna":
             self.ui.stackedWidget.setCurrentWidget(self.ui.pg_p_columna)
             self.mostrar_columna()
@@ -449,6 +449,10 @@ class VentanaPrincipal(QMainWindow):
 
     def actualizar_asce_data(self, datos):
         self.asce_data = datos.copy()
+        self.mc_matriz = None
+        self.mc_series = {}
+        self.di_matriz = None
+        self.di_series = {}
 
     def _apagar_capa_fibras(self):
         accion = getattr(self.ui, "actionCapas_de_Fibras_2", None)
@@ -477,6 +481,10 @@ class VentanaPrincipal(QMainWindow):
 
     def actualizar_fibras_data(self, datos):
         self.capas_fibras_data = datos.copy()
+        self.mc_matriz = None
+        self.mc_series = {}
+        self.di_matriz = None
+        self.di_series = {}
 
     def abrir_mostrar_di(self):
         if not getattr(self, "di_series", None):
@@ -498,7 +506,7 @@ class VentanaPrincipal(QMainWindow):
         if texto.lower() == "columna":
             dlg = VentanaMostrarMC(self.mc_series, parent=self)
         elif texto.lower() == "viga":
-            dlg = VentanaMostrarMCV(self.mc_series, parent=self)
+            dlg = VentanaMostrarMC(self.mc_series, parent=self)
         dlg.exec()
 
     # ---------------- Vistas secciones / propiedades ----------------

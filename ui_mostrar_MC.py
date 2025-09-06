@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'mostrar_MCuUtWGP.ui'
+## Form generated from reading UI file 'mostrar_MC - copiasgtZVc.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.4.3
 ##
@@ -16,7 +16,7 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
 from PySide6.QtWidgets import (QApplication, QCheckBox, QDialog, QGroupBox,
-    QLabel, QPushButton, QSizePolicy, QWidget)
+    QPushButton, QSizePolicy, QWidget)
 
 class Ui_mostrar_MC(object):
     def setupUi(self, mostrar_MC):
@@ -33,41 +33,19 @@ class Ui_mostrar_MC(object):
         self.groupBox_16 = QGroupBox(mostrar_MC)
         self.groupBox_16.setObjectName(u"groupBox_16")
         self.groupBox_16.setEnabled(True)
-        self.groupBox_16.setGeometry(QRect(10, 10, 281, 231))
-        self.label = QLabel(self.groupBox_16)
-        self.label.setObjectName(u"label")
-        self.label.setGeometry(QRect(20, 20, 61, 16))
-        self.label_2 = QLabel(self.groupBox_16)
-        self.label_2.setObjectName(u"label_2")
-        self.label_2.setGeometry(QRect(20, 70, 61, 16))
-        self.checkBox = QCheckBox(self.groupBox_16)
-        self.checkBox.setObjectName(u"checkBox")
-        self.checkBox.setEnabled(False)
-        self.checkBox.setGeometry(QRect(40, 40, 111, 20))
-        self.checkBox.setCheckable(True)
-        self.checkBox.setChecked(True)
-        self.checkBox.setTristate(False)
+        self.groupBox_16.setGeometry(QRect(10, 10, 281, 91))
         self.checkBox_2 = QCheckBox(self.groupBox_16)
         self.checkBox_2.setObjectName(u"checkBox_2")
-        self.checkBox_2.setGeometry(QRect(40, 90, 76, 20))
+        self.checkBox_2.setGeometry(QRect(30, 30, 76, 20))
         self.checkBox_3 = QCheckBox(self.groupBox_16)
         self.checkBox_3.setObjectName(u"checkBox_3")
-        self.checkBox_3.setGeometry(QRect(40, 120, 141, 20))
-        self.checkBox_4 = QCheckBox(self.groupBox_16)
-        self.checkBox_4.setObjectName(u"checkBox_4")
-        self.checkBox_4.setGeometry(QRect(40, 150, 141, 20))
-        self.label_3 = QLabel(self.groupBox_16)
-        self.label_3.setObjectName(u"label_3")
-        self.label_3.setGeometry(QRect(20, 180, 61, 16))
-        self.checkBox_5 = QCheckBox(self.groupBox_16)
-        self.checkBox_5.setObjectName(u"checkBox_5")
-        self.checkBox_5.setGeometry(QRect(40, 200, 111, 20))
+        self.checkBox_3.setGeometry(QRect(30, 60, 91, 20))
         self.cuadricula_MC = QWidget(mostrar_MC)
         self.cuadricula_MC.setObjectName(u"cuadricula_MC")
         self.cuadricula_MC.setGeometry(QRect(310, 20, 661, 591))
         self.btn_mostrar_tablaMC = QPushButton(mostrar_MC)
         self.btn_mostrar_tablaMC.setObjectName(u"btn_mostrar_tablaMC")
-        self.btn_mostrar_tablaMC.setGeometry(QRect(10, 260, 91, 24))
+        self.btn_mostrar_tablaMC.setGeometry(QRect(10, 110, 91, 24))
 
         self.retranslateUi(mostrar_MC)
 
@@ -77,14 +55,8 @@ class Ui_mostrar_MC(object):
     def retranslateUi(self, mostrar_MC):
         mostrar_MC.setWindowTitle(QCoreApplication.translate("mostrar_MC", u"Diagrama Momento - Curvatura", None))
         self.groupBox_16.setTitle(QCoreApplication.translate("mostrar_MC", u"Modelos Idealizados", None))
-        self.label.setText(QCoreApplication.translate("mostrar_MC", u"Acero", None))
-        self.label_2.setText(QCoreApplication.translate("mostrar_MC", u"Hormig\u00f3n", None))
-        self.checkBox.setText(QCoreApplication.translate("mostrar_MC", u"Thompson - Park", None))
         self.checkBox_2.setText(QCoreApplication.translate("mostrar_MC", u"Hognestad", None))
-        self.checkBox_3.setText(QCoreApplication.translate("mostrar_MC", u"Mander No Confinado", None))
-        self.checkBox_4.setText(QCoreApplication.translate("mostrar_MC", u"Mander Confinado", None))
-        self.label_3.setText(QCoreApplication.translate("mostrar_MC", u"ASCE", None))
-        self.checkBox_5.setText(QCoreApplication.translate("mostrar_MC", u"ASCE 41", None))
+        self.checkBox_3.setText(QCoreApplication.translate("mostrar_MC", u"Mander", None))
         self.btn_mostrar_tablaMC.setText(QCoreApplication.translate("mostrar_MC", u"Mostrar Tabla", None))
     # retranslateUi
 

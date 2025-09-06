@@ -59,15 +59,11 @@ class VentanaMostrarMC(QDialog):
 
         # Estados iniciales: todos marcados
         self.ui.checkBox_2.setChecked(True)  # Hognestad
-        self.ui.checkBox_3.setChecked(True)  # Mander No Confinado
-        self.ui.checkBox_4.setChecked(True)  # Mander Confinado
-        self.ui.checkBox_5.setChecked(True)  # ASCE
+        self.ui.checkBox_3.setChecked(True)  # Mander
 
         # Conexiones (replot total al cambiar)
         self.ui.checkBox_2.stateChanged.connect(self.actualizar_grafica)
         self.ui.checkBox_3.stateChanged.connect(self.actualizar_grafica)
-        self.ui.checkBox_4.stateChanged.connect(self.actualizar_grafica)
-        self.ui.checkBox_5.stateChanged.connect(self.actualizar_grafica)
 
         # Variables para hover
         self.marker = None
@@ -84,14 +80,10 @@ class VentanaMostrarMC(QDialog):
         checks = {
             "hognestad": self.ui.checkBox_2,
             "mander_no_conf": self.ui.checkBox_3,
-            "mander_confinado": self.ui.checkBox_4,
-            "asce": self.ui.checkBox_5,
         }
         etiquetas = {
             "hognestad": "Hognestad",
-            "mander_no_conf": "Mander No Confinado",
-            "mander_confinado": "Mander Confinado",
-            "asce": "ASCE",
+            "mander_no_conf": "Mander",
         }
         VentanaMostrarTabla(self._series, checks, etiquetas,
             titulo="Tabla de resultados Momento–Curvatura",
@@ -102,9 +94,7 @@ class VentanaMostrarMC(QDialog):
     def _etiqueta(self, clave: str) -> str:
         return {
             "hognestad": "Hognestad",
-            "mander_no_conf": "Mander No Confinado",
-            "mander_confinado": "Mander Confinado",
-            "asce": "ASCE",
+            "mander_no_conf": "Mander",
         }.get(clave, clave)
 
     def actualizar_grafica(self):
@@ -128,7 +118,7 @@ class VentanaMostrarMC(QDialog):
         x_formatter = mticker.ScalarFormatter(useMathText=True)
         y_formatter = mticker.ScalarFormatter(useMathText=True)
         x_formatter.set_scientific(True)
-        y_formatter.set_scientific(True)
+        y_formatter.set_scientific(False)
         ax.xaxis.set_major_formatter(x_formatter)
         ax.yaxis.set_major_formatter(y_formatter)
         ax.xaxis.get_offset_text().set_fontsize(8)
@@ -140,10 +130,8 @@ class VentanaMostrarMC(QDialog):
 
         # Qué curvas ploteamos según checkboxes
         modelos = [
-            ("hognestad",      self.ui.checkBox_2, 'magenta'),  # color None => por defecto
-            ("mander_no_conf", self.ui.checkBox_3, 'blue'),
-            ("mander_confinado", self.ui.checkBox_4, 'green'),
-            ("asce",           self.ui.checkBox_5, 'orange'),
+            ("hognestad",      self.ui.checkBox_2, 'magenta'),  
+            ("mander_no_conf", self.ui.checkBox_3, 'blue'),  
         ]
 
         algo_dibujado = False
