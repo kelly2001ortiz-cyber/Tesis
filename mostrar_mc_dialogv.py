@@ -117,7 +117,7 @@ class VentanaMostrarMCV(QDialog):
         ax.axvline(0, color='gray', linewidth=1.2, linestyle='-', alpha=0.8)
         ax.set_xlabel("Curvatura, θ (1/m)", fontsize=10)
         ax.xaxis.set_label_position('top')
-        ax.set_ylabel("Momento, M (Tm)", fontsize=10)
+        ax.set_ylabel("Momento, M (T-m)", fontsize=10)
         ax.yaxis.set_label_position('right')
         ax.grid(True, linestyle='--', alpha=0.6)
         ax.tick_params(axis='both', labelsize=8)

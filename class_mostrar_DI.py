@@ -171,8 +171,8 @@ class VentanaMostrarDI(QDialog):
         """
         Cambia los títulos de columnas según el modo (con φ o sin φ).
         Horizontal:
-            - Con φ: ['φPn (T)', 'φMn (Tm)']
-            - Sin φ: ['Pn (T)',  'Mn (Tm)']
+            - Con φ: ['φPn (T)', 'φMn (T-m)']
+            - Sin φ: ['Pn (T)',  'Mn (T-m)']
         (Las dimensiones/tamaños de la tabla se respetan como en el .ui)
         """
         tabla = self.ui.tablePuntosControl
@@ -184,10 +184,10 @@ class VentanaMostrarDI(QDialog):
 
         if self.ui.checkBox_conphi.isChecked():
             tabla.setHorizontalHeaderItem(0, QTableWidgetItem("φPn (T)"))
-            tabla.setHorizontalHeaderItem(1, QTableWidgetItem("φMn (Tm)"))
+            tabla.setHorizontalHeaderItem(1, QTableWidgetItem("φMn (T-m)"))
         else:
             tabla.setHorizontalHeaderItem(0, QTableWidgetItem("Pn (T)"))
-            tabla.setHorizontalHeaderItem(1, QTableWidgetItem("Mn (Tm)"))
+            tabla.setHorizontalHeaderItem(1, QTableWidgetItem("Mn (T-m)"))
 
         # Importante: no ajustamos widths/heights para mantener lo del .ui
 
@@ -272,7 +272,7 @@ class VentanaMostrarDI(QDialog):
         # Ejes y formato
         ax.axhline(0, color='gray', linewidth=1.2, linestyle='-', alpha=0.8)
         ax.axvline(0, color='gray', linewidth=1.2, linestyle='-', alpha=0.8)
-        ax.set_xlabel("Momento, M (Tm)", fontsize=10)
+        ax.set_xlabel("Momento, M (T-m)", fontsize=10)
         ax.xaxis.set_label_position('top')
         ax.set_ylabel("Carga Axial, P (T)", fontsize=10)
         ax.yaxis.set_label_position('right')

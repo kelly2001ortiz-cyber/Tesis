@@ -87,7 +87,10 @@ def calcular_respuesta_seccion(fc, fy, Ec, b, h, rec, d_est, s_est,
     d_m = d/100
     V_ac = 1.1926 * (Vv / (bw * d_m * np.sqrt(fc)))
 
-    a, b_par, c = obtener_parametros_modelado(condicion, cuantia, confinado, V_ac, s_est)
+    params = obtener_parametros_modelado(condicion, cuantia, confinado, V_ac, s_est)
+    if not isinstance(params, tuple) or len(params) != 3:
+        raise ValueError(str(params))
+    a, b_par, c = params
 
     # Rotación y curvatura
     roty = Long*My/(6*EI)
@@ -111,7 +114,11 @@ def calcular_respuesta_seccion(fc, fy, Ec, b, h, rec, d_est, s_est,
     thetas = np.linspace(Curvatura.min(), Curvatura.max(), n_puntos)
     M = np.interp(thetas, Curvatura, Momento)
 
-    return M, thetas
+    # Interpolación lineal a n_puntos (=100 por defecto) uniformes en Rotacion
+    rots = np.linspace(Rotacion.min(), Rotacion.max(), n_puntos)
+    Mr = np.interp(rots, Rotacion, Momento)
+
+    return M, thetas, Mr, rots
 
 def ejecutar_mc_asce_viga (datos_hormigon, datos_acero, datos_seccion, datos_asce, condicion):
     fc = float(datos_hormigon.get("esfuerzo_fc"))              # Esfuerzo máximo (kg/cm² o MPa)
@@ -133,10 +140,10 @@ def ejecutar_mc_asce_viga (datos_hormigon, datos_acero, datos_seccion, datos_asc
     Vv = float(datos_asce.get("cortante_viga_asce"))/1000
     coefi = float(datos_asce.get("coef_viga_asce"))
 
-    M, thetas = calcular_respuesta_seccion(
+    M, thetas, Mr, rots = calcular_respuesta_seccion(
         fc, fy, Ec, b, h, rec, d_est, s_est,
         d_var_sup, n_var_sup, d_var_inf, n_var_inf,
         ey, ec0, ecu, Long, Vv,
         coefi, condicion=condicion, P0=0, n_puntos=100
     )
-    return M, thetas
+    return M, thetas, Mr, rots

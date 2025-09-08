@@ -105,8 +105,11 @@ def calcular_respuesta_seccion(fc, fy, Ec, b, h, rec, d_est, s_est,
     #fc = fc*10   # T/m2
     V_norm = 1.1926 * (Vv / (bw * d * np.sqrt(fc))) # Pound/in
 
-    a, b_par, c = obtener_parametros_modelado(condicion, p_rel, confinado, V_norm, s_est, d)
-
+    params = obtener_parametros_modelado(condicion, p_rel, confinado, V_norm, s_est, d)
+    if not isinstance(params, tuple) or len(params) != 3:
+        raise ValueError(str(params))
+    a, b_par, c = params
+    
     # Determinacion de rotacion de fluencia según ASCE 
     roty = Long*My/(6*EI)
 
@@ -132,7 +135,11 @@ def calcular_respuesta_seccion(fc, fy, Ec, b, h, rec, d_est, s_est,
     thetas = np.linspace(Curvatura.min(), Curvatura.max(), n_puntos)
     M = np.interp(thetas, Curvatura, Momento)
 
-    return M, thetas
+    # Interpolación lineal a n_puntos (=100 por defecto) uniformes en Rotacion
+    rots = np.linspace(Rotacion.min(), Rotacion.max(), n_puntos)
+    Mr = np.interp(rots, Rotacion, Momento)
+
+    return M, thetas, Mr, rots
 
 def ejecutar_mc_asce_columnaX (datos_hormigon, datos_acero, datos_seccion, datos_asce, condicion):
 
@@ -154,13 +161,13 @@ def ejecutar_mc_asce_columnaX (datos_hormigon, datos_acero, datos_seccion, datos
     ram_x = float(datos_seccion.get("disenar_columna_ramalesY"))
 
     s_est = float(datos_seccion.get("disenar_columna_espaciamiento"))
-    Long = float(datos_asce.get("long_columna_asce"))
-    Vv = float(datos_asce.get("cortante_columna_asce"))/1000
+    Long = float(datos_asce.get("long_viga_asce"))
+    Vv = float(datos_asce.get("cortante_viga_asce"))/1000
     P0 = float(datos_asce.get("axial_columna_asce"))/1000
 
-    M, thetas = calcular_respuesta_seccion(
+    M, thetas, Mr, rots = calcular_respuesta_seccion(
         fc, fy, Ec, b, h, rec, d_est, s_est,
         d_long, n_var_x, n_var_y, ram_x, ram_y,
         ey, ec0, ecu, Long, Vv, P0, condicion=condicion, n_puntos=100
     )
-    return M, thetas
+    return M, thetas, Mr, rots

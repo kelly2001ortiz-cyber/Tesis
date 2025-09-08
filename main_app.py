@@ -20,10 +20,10 @@ from vista_dinamica_seccion_columna import SeccionColumnaGrafico
 from seccion_viga_controller import SeccionVigaController
 from vista_dinamica_seccion_viga import SeccionVigaGrafico
 from class_definir_asce import VentanaDefinirASCE
+from class_calcular_asce import CalculadoraASCE
 from calculo_mc_service import CalculadoraMomentoCurvatura
 from calculo_mc_servicev import CalculadoraMomentoCurvaturaV
 from mostrar_mc_dialog import VentanaMostrarMC
-from mostrar_mc_dialogv import VentanaMostrarMCV
 from class_mostrar_DI import VentanaMostrarDI
 from class_mostrar_fibras import class_mostrar_fibras
 
@@ -78,7 +78,7 @@ class VentanaPrincipal(QMainWindow):
         self.ui.actionHormig_n_2.triggered.connect(self.abrir_material_hormigon)
         self.ui.actionAcero_2.triggered.connect(self.abrir_material_acero)
         self.ui.actionDocumentaci_n.triggered.connect(self.abrir_documentacion)
-        self.ui.actionParametros_ASCE.triggered.connect(self.abrir_definir_asce)
+        self.ui.actionDiagrama_ASCE.triggered.connect(self.abrir_definir_asce)
         self.ui.actionCapas_de_Fibras.triggered.connect(self.abrir_definir_fibras)
         self.ui.actionDiagrama_de_iteracion.triggered.connect(self.abrir_mostrar_di)
         self.ui.actionDiagrama_M_C.triggered.connect(self.abrir_mostrar_mc)
@@ -169,10 +169,7 @@ class VentanaPrincipal(QMainWindow):
             "cortante_viga_asce": "2000",
             "condicion_viga_asce": "Flexión",
             # Columna
-            "long_columna_asce": "6",
             "axial_columna_asce": "20000",
-            "cortante_columna_asce": "6000",
-            "condicion_columna_asce": "Flexión",
             # Campos de solo-lectura (se sobreescriben SIEMPRE antes de abrir el diálogo)
             "def_max_asce": "",
             "def_ultima_asce": "",
@@ -433,22 +430,42 @@ class VentanaPrincipal(QMainWindow):
         self.ventana_ayuda.exec()
 
     def abrir_definir_asce(self):
-        # --- Poblar SIEMPRE los 3 lineedits de solo-lectura desde los diccionarios de materiales ---
-        self.asce_data["def_max_asce"] = str(self.material_hormigon_data.get("def_max_sin_confinar", ""))
-        self.asce_data["def_ultima_asce"] = str(self.material_hormigon_data.get("def_ultima_sin_confinar", ""))
+        # 1) Poblar SIEMPRE los 3 lineedits de solo-lectura desde los diccionarios de materiales
+        self.asce_data["def_max_asce"]      = str(self.material_hormigon_data.get("def_max_sin_confinar", ""))
+        self.asce_data["def_ultima_asce"]   = str(self.material_hormigon_data.get("def_ultima_sin_confinar", ""))
         self.asce_data["def_fluencia_asce"] = str(self.material_acero_data.get("def_fluencia_acero", ""))
 
-        self.ventana_definir_asce = VentanaDefinirASCE(self.asce_data)
+        # 2) Determinar sección actual y dict de sección a inyectar
+        seccion_actual = self.ui.seccion_analisis.currentText()
+        if (seccion_actual or "").strip().lower() == "viga":
+            datos_seccion = self.seccion_viga_data
+        else:
+            datos_seccion = self.seccion_columna_data
 
+        # 3) Crear el diálogo pasando self.asce_data por referencia
+        #    (El diálogo actualizará este dict en tiempo real)
+        self.ventana_definir_asce = VentanaDefinirASCE(seccion_actual, self.asce_data, parent=self)
+
+        # 4) Inyectar referencias necesarias para cálculo/graficación
+        self.ventana_definir_asce._calc_asce      = CalculadoraASCE()
+        self.ventana_definir_asce._tipo_seccion   = seccion_actual
+        self.ventana_definir_asce._direccion      = self.ui.direccion_analisis   # combobox de dirección (para columnas)
+        self.ventana_definir_asce._datos_hormigon = self.material_hormigon_data
+        self.ventana_definir_asce._datos_acero    = self.material_acero_data
+        self.ventana_definir_asce._datos_seccion  = datos_seccion
+
+        # 5) (Opcional) refrescar visualmente los 3 campos de solo-lectura por si el UI los muestra
         self.ventana_definir_asce.ui.def_max_asce.setText(self.asce_data["def_max_asce"])
         self.ventana_definir_asce.ui.def_ultima_asce.setText(self.asce_data["def_ultima_asce"])
         self.ventana_definir_asce.ui.def_fluencia_asce.setText(self.asce_data["def_fluencia_asce"])
 
-        self.ventana_definir_asce.datos_guardados_callback = self._wrap_dirty(self.actualizar_asce_data)
+        # 6) Ya no usamos callbacks de guardado/cancelado → elimina esta línea:
+        # self.ventana_definir_asce.datos_guardados_callback = self._wrap_dirty(self.actualizar_asce_data)
+
+        # 7) Abrir modal; al cerrar, self.asce_data ya quedó actualizada en tiempo real
         self.ventana_definir_asce.exec()
 
-    def actualizar_asce_data(self, datos):
-        self.asce_data = datos.copy()
+        # 8) Invalida resultados previos para forzar recálculo donde corresponda
         self.mc_matriz = None
         self.mc_series = {}
         self.di_matriz = None
@@ -555,21 +572,55 @@ class VentanaPrincipal(QMainWindow):
         self.ui.columna_total_as.setText(str(As))
         self.ui.columna_rho.setText(str(rho))
 
+    # === NUEVO helper: condición ASCE como texto consistente ===
+    def _condicion_asce_text(self) -> str:
+        """
+        Devuelve siempre 'Flexión' o 'Corte', sin importar si viene de combo, índice o texto.
+        """
+        alias = {
+            "0": "Flexión", 0: "Flexión",
+            "1": "Corte",   1: "Corte",
+            "Flexion": "Flexión", "flexion": "Flexión", "flexión": "Flexión",
+            "corte": "Corte"
+        }
+
+        # 1) Si el diálogo está abierto, usa el combo NUEVO (condicion_viga_asce)
+        try:
+            if hasattr(self, "ventana_definir_asce") and self.ventana_definir_asce is not None:
+                txt = self.ventana_definir_asce.ui.condicion_viga_asce.currentText().strip()
+                return alias.get(txt, txt)
+        except Exception:
+            pass
+
+        # 2) Si no hay diálogo, intenta desde asce_data (texto o índice)
+        try:
+            if "condicion_viga_asce_text" in self.asce_data:
+                txt = str(self.asce_data.get("condicion_viga_asce_text", "")).strip()
+                return alias.get(txt, txt) or "Flexión"
+
+            if "condicion_viga_asce" in self.asce_data:
+                val = self.asce_data["condicion_viga_asce"]
+                return alias.get(val, "Flexión")
+
+            # compat histórico por si quedó esta clave
+            if "condicion_columna_asce" in self.asce_data:
+                val = self.asce_data["condicion_columna_asce"]
+                return alias.get(val, "Flexión")
+        except Exception:
+            pass
+
+        # 3) Fallback
+        return "Flexión"
+
     def actualizar_seccion_columna_data(self, datos):
         self.seccion_columna_data = datos.copy()
-        if hasattr(self, "ventana_definir_asce") and self.ventana_definir_asce is not None:
-            condicion = self.ventana_definir_asce.ui.condicion_columna_asce.currentText()
-        else:
-            # Si nunca se abrió el diálogo, usar un default razonable o lo que tengas en asce_data
-            condicion = self.asce_data.get("condicion_columna_asce", "Flexión")
+        condicion = self._condicion_asce_text()
         mc_matriz, mc_series, di_matriz, di_series = self.calc_mc.ejecutar(
             self.material_hormigon_data,
             self.material_acero_data,
             self.seccion_columna_data,
             self.capas_fibras_data,
             self.ui.direccion_analisis,
-            self.asce_data,
-            condicion,
         )
         self.mc_matriz = mc_matriz
         self.mc_series = mc_series
@@ -608,20 +659,13 @@ class VentanaPrincipal(QMainWindow):
 
     def actualizar_seccion_viga_data(self, datos):
         self.seccion_viga_data = datos.copy()
-        # Leer texto del QComboBox que vive en el diálogo VentanaDefinirASCE
-        if hasattr(self, "ventana_definir_asce") and self.ventana_definir_asce is not None:
-            condicion = self.ventana_definir_asce.ui.condicion_viga_asce.currentText()
-        else:
-            # Si nunca se abrió el diálogo, usar un default razonable o lo que tengas en asce_data
-            condicion = self.asce_data.get("condicion_viga_asce", "Flexión")
+        condicion = self._condicion_asce_text()
 
         mc_matriz, mc_series = self.calc_mcv.ejecutar(
             self.material_hormigon_data,
             self.material_acero_data,
             self.seccion_viga_data,
             self.capas_fibras_data,
-            self.asce_data,
-            condicion,
         )
         self.mc_matriz = mc_matriz
         self.mc_series = mc_series

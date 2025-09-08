@@ -44,7 +44,11 @@ class ErrorFloatingLabel(QLabel):
 def validar_en_tiempo_real(line_edit, campos_invalidos, error_label, color="#FF3333"):
     texto = line_edit.text()
     valor = parsear_numero(texto)
-    valido = valor is not None and valor > 0
+    # Caso especial: axial_columna_asce bloqueado en "Viga"
+    if line_edit.objectName() == "axial_columna_asce" and not line_edit.isEnabled():
+        valido = True   # siempre válido aunque sea 0
+    else:
+        valido = valor is not None and valor > 0
 
     if not valido:
         line_edit.setStyleSheet(f"border: 1.5px solid {color};")
