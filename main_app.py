@@ -186,6 +186,43 @@ class VentanaPrincipal(QMainWindow):
         self.ui.seccion_analisis.currentTextChanged.connect(self._mark_dirty)
         self.ui.direccion_analisis.currentTextChanged.connect(self._mark_dirty)
 
+    def _wire_asce_dirty_signals(self, dlg):
+        """
+        Conecta señales de VentanaDefinirASCE a _mark_dirty() (solo en main_app).
+        Usamos textEdited para evitar disparos programáticos.
+        """
+        def _c(sig):
+            try:
+                sig.connect(self._mark_dirty)
+            except Exception:
+                pass
+
+        # LineEdits relevantes (solo cambios del usuario)
+        for name in (
+            "def_max_asce", "def_ultima_asce", "def_fluencia_asce",
+            "cortante_viga_asce", "axial_columna_asce",
+            "long_viga_asce", "coef_viga_asce",
+        ):
+            le = getattr(dlg.ui, name, None)
+            if le is not None:
+                _c(le.textEdited)
+
+        # Combo Flexión/Corte
+        cb = getattr(dlg.ui, "condicion_viga_asce", None)
+        if cb is not None:
+            _c(cb.currentIndexChanged)
+
+        # Check de curvatura
+        chk = getattr(dlg.ui, "checkBox_curvatura", None)
+        if chk is not None:
+            _c(chk.stateChanged)
+
+        # Botones de cálculo (persisten curvas)
+        for btn_name in ("btn_calcular_rotacion", "btn_calcular_curvatura"):
+            btn = getattr(dlg.ui, btn_name, None)
+            if btn is not None:
+                _c(btn.clicked)
+
     def _wire_dirty_lineedits(self, parent):
         """Conecta todos los QLineEdit dentro del widget `parent` a _mark_dirty()."""
         from PySide6.QtWidgets import QLineEdit
@@ -461,7 +498,7 @@ class VentanaPrincipal(QMainWindow):
 
         # 6) Ya no usamos callbacks de guardado/cancelado → elimina esta línea:
         # self.ventana_definir_asce.datos_guardados_callback = self._wrap_dirty(self.actualizar_asce_data)
-
+        self._wire_asce_dirty_signals(self.ventana_definir_asce)
         # 7) Abrir modal; al cerrar, self.asce_data ya quedó actualizada en tiempo real
         self.ventana_definir_asce.exec()
 

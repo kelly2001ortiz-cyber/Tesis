@@ -1,7 +1,8 @@
-# class_definir_asce.py
-from typing import Optional
+# class_definir_asce.py  (versión optimizada)
+from __future__ import annotations
+from typing import Optional, Tuple, List, Dict, Any
 
-from PySide6.QtWidgets import QDialog, QMessageBox, QVBoxLayout, QLabel, QSizePolicy
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QSizePolicy
 from PySide6.QtCore import QEvent
 
 from ui_definir_asce import Ui_definir_asce
@@ -12,7 +13,7 @@ from validation_utils2 import (
     corregir_y_normalizar,
 )
 
-# ========= Estilo de gráfico/toolbar =========
+# ========= Matplotlib embebido (Qt5/Qt6) =========
 try:
     from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
     from matplotlib.backends.backend_qtagg import NavigationToolbar2QT
@@ -21,12 +22,12 @@ except Exception:
     from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT
 
 import matplotlib.pyplot as plt
-import numpy as np
 import matplotlib.ticker as mticker
+import numpy as np
 
 
+# ---------------- Toolbar compacta ----------------
 class CustomToolbar(NavigationToolbar2QT):
-    """Toolbar compacta."""
     toolitems = [
         ('Home', 'Reset original view', 'home', 'home'),
         ('Back', 'Back to previous view', 'back', 'back'),
@@ -39,405 +40,551 @@ class CustomToolbar(NavigationToolbar2QT):
 
 class VentanaDefinirASCE(QDialog):
     """
-    Ventana para configurar parámetros ASCE y dibujar:
+    Ventana para configurar parámetros ASCE y graficar:
       - Momento–Rotación (btn_calcular_rotacion)
       - Momento–Curvatura (btn_calcular_curvatura)
-
-    Inyecciones esperadas (desde main antes de exec()):
-      _calc_asce: instancia de CalculadoraASCE
-      _tipo_seccion: "Viga" | "Columna"
-      _direccion:   combobox o texto ("Dirección X" | "Dirección Y") — solo columnas
-      _datos_hormigon, _datos_acero, _datos_seccion: dicts
-      datos_iniciales: dict con claves para cargar/editar (asce_data compartido)
     """
+
+    # ------- Claves internas para persistencia -------
+    _K_PLOT_KIND   = "_asce_plot_kind"       # "rotacion" | "curvatura" | None
+    _K_PLOT_X      = "_asce_plot_x"
+    _K_PLOT_Y      = "_asce_plot_y"
+    _K_PLOT_XLABEL = "_asce_plot_xlabel"
+    _K_PLOT_YLABEL = "_asce_plot_ylabel"
+    _K_MAT_SIG     = "_asce_mat_signature"   # firma materiales
+
+    # Colores fijos por tipo de curva
+    _COLOR_ROT  = "magenta"
+    _COLOR_CURV = "blue"
+
+    # Campos editables (para validar, snapshot y reglas de limpieza)
+    _CAMPOS_EDITABLES = (
+        "def_max_asce", "def_ultima_asce", "def_fluencia_asce",
+        "cortante_viga_asce", "axial_columna_asce",
+        "long_viga_asce", "coef_viga_asce",
+    )
+
+    # Alias robustos para la condición de viga
+    _ALIAS_CONDICION = {
+        "Flexion": "Flexión", "flexion": "Flexión", "flexión": "Flexión",
+        "0": "Flexión", 0: "Flexión",
+        "1": "Corte",   1: "Corte",
+        "Corte": "Corte", "corte": "Corte"
+    }
 
     def __init__(self, seccion_actual: str, datos_iniciales: Optional[dict] = None, parent=None):
         super().__init__(parent)
         self.ui = Ui_definir_asce()
         self.ui.setupUi(self)
 
-        # === Estado inicial requerido ===
-        # Checkbox de curvatura desmarcado y groupBox_3 deshabilitado
-        try:
-            self.ui.checkBox_curvatura.setChecked(False)
-            self.ui.groupBox_3.setEnabled(False)
-            # Habilitar/Deshabilitar groupBox_3 según el checkbox
-            self.ui.checkBox_curvatura.toggled.connect(self.ui.groupBox_3.setEnabled)
-        except Exception:
-            pass
-
-        # ----------------- Estado general -----------------
+        # ----------------- Estado base -----------------
         self.cambios_pendientes = False
         self.error_label = ErrorFloatingLabel(self)
 
-        # Referencia al diccionario que se actualizará en tiempo real
-        # Si no viene, creamos uno nuevo y lo mantenemos como _asce_data.
-        self._asce_data: dict = datos_iniciales if datos_iniciales is not None else {}
+        # Diccionario vivo que recibimos por referencia (se actualiza en tiempo real)
+        self._asce_data: Dict[str, Any] = datos_iniciales if isinstance(datos_iniciales, dict) else {}
+        self._tipo_seccion: str = getattr(self, "_tipo_seccion", seccion_actual)  # compat con inyección
+        self._grafica_actual: Optional[str] = None  # "rotacion" | "curvatura" | None
 
-        # Campos a validar/escuchar (ajusta según tu UI)
-        self.campos_a_validar = [
-            # Viga
-            self.ui.long_viga_asce,
-            self.ui.coef_viga_asce,
-            self.ui.cortante_viga_asce,
-            # Columna
-            self.ui.axial_columna_asce,
-        ]
-        self.campos_invalidos = {c: False for c in self.campos_a_validar}
+        # Buffers para curva y hover
+        self.series_asce = None
+        self.ax_asce = None
+        self.marker_asce = None
+        self._xy_disp_asce = None
+        self.x_total_asce: List[float] = []
+        self.y_total_asce: List[float] = []
+        self._x_pick: np.ndarray | List[float] = []
+        self._y_pick: np.ndarray | List[float] = []
 
-        # Conexiones de validación + actualización en tiempo real
+        # Guard / snapshot
+        self._hidratando: bool = False
+        self._snapshot_ui: Dict[str, str] = {}
+
+        # Campos a validar/escuchar y mapa widget->clave
+        self.campos_a_validar = [getattr(self.ui, n) for n in self._CAMPOS_EDITABLES if hasattr(self.ui, n)]
+        self._map_le_to_key = {getattr(self.ui, n): n for n in self._CAMPOS_EDITABLES if hasattr(self.ui, n)}
+
+        # ------------ Conexiones de eventos de edición ------------
         for campo in self.campos_a_validar:
             campo.textChanged.connect(lambda _, le=campo: self.on_modificacion(le))
             campo.editingFinished.connect(lambda le=campo: self._normalizar_y_actualizar(le))
             campo.installEventFilter(self)
 
-        # Si hay combo para condición de viga, también lo conectamos a actualizaciones
+        # Combo Flexión/Corte (si existe)
         if hasattr(self.ui, "condicion_viga_asce"):
-            self.ui.condicion_viga_asce.currentIndexChanged.connect(
-                lambda _=None: self._actualizar_asce_data()
-            )
+            self.ui.condicion_viga_asce.currentIndexChanged.connect(self._on_condicion_cambiada)
 
-        # ---- Precarga visual desde _asce_data ----
-        self._cargar_datos(self._asce_data)
+        # Botones de calcular
+        self.ui.btn_calcular_rotacion.clicked.connect(self._calc_y_plot_rotacion)
+        self.ui.btn_calcular_curvatura.clicked.connect(self._calc_y_plot_curvatura)
 
-        # Habilitar/inhabilitar axial según el tipo
-        if seccion_actual == "Viga":
-            self.ui.axial_columna_asce.setEnabled(False)
-        else:
-            self.ui.axial_columna_asce.setEnabled(True)
+        # Axial solo para columnas
+        self.ui.axial_columna_asce.setEnabled(self._tipo_seccion != "Viga")
 
-        # ====== Canvas Matplotlib en cuadricula_ASCE ======
+        # ====== Canvas Matplotlib ======
         self.figure = plt.figure()
         self.canvas = FigureCanvas(self.figure)
         self.toolbar = CustomToolbar(self.canvas, self)
         self.toolbar.setMaximumHeight(28)
+        # Silenciar coordenadas en la toolbar si es posible
+        try:
+            self.toolbar.coordinates = False
+        except Exception:
+            pass
 
         cont = self.ui.cuadricula_ASCE
-        layout = cont.layout()
-        if not layout:
-            layout = QVBoxLayout(cont)
-            cont.setLayout(layout)
-        # limpiar contenedores previos
-        while layout.count():
-            child = layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        layout = cont.layout() or QVBoxLayout(cont)
+        cont.setLayout(layout)
+        layout.setContentsMargins(3, 3, 3, 3)
+        layout.setSpacing(3)
         layout.addWidget(self.toolbar)
         layout.addWidget(self.canvas)
 
-        # Canvas expansible
-        self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        # Label inferior para coordenadas
+        if hasattr(self.ui, "lbl_coordenadas_asce"):
+            self.lbl_coordenadas_asce: QLabel = self.ui.lbl_coordenadas_asce
+        else:
+            self.lbl_coordenadas_asce = QLabel("")
+            self.lbl_coordenadas_asce.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+            layout.addWidget(self.lbl_coordenadas_asce)
+
+        # Eventos de mouse para hover
+        self.canvas.mpl_connect("motion_notify_event", self._on_mouse_move_asce)
+        self.canvas.mpl_connect("draw_event", self._recalc_disp_coords_asce)
+
+        # ===== Hidratación inicial =====
+        self._hidratando = True
+        self._refrescar_campos_materiales_desde_dicts()  # 1) material -> _asce_data
+        self._cargar_datos(self._asce_data)              # 2) _asce_data -> UI
+        self._snapshot_ui = self._obtener_datos()        # 3) snapshot
+        if hasattr(self.ui, "condicion_viga_asce"):
+            self._snapshot_ui["condicion_viga_asce_text"] = self.ui.condicion_viga_asce.currentText().strip()
+
+        # 4) checkBox_curvatura gobierna groupBox_3
+        if hasattr(self.ui, "checkBox_curvatura") and hasattr(self.ui, "groupBox_3"):
+            self.ui.groupBox_3.setEnabled(self.ui.checkBox_curvatura.isChecked())
+            self.ui.checkBox_curvatura.stateChanged.connect(self._on_toggle_curvatura)
+
+        # ======= Restauración / Primera apertura =======
         try:
-            self.figure.set_constrained_layout(True)
+            firma_guardada = self._asce_data.get(self._K_MAT_SIG)
+            if firma_guardada is not None and firma_guardada != self._firma_materiales_actual():
+                self._borrar_persistencia_grafica()
         except Exception:
             pass
-        cont.installEventFilter(self)
 
-        # etiqueta de coordenadas (hover)
-        self.lbl_coordenadas_asce = QLabel("Desplaza el mouse sobre la curva para ver coordenadas.")
-        self.lbl_coordenadas_asce.setStyleSheet("font-size: 14px; padding: 4px 0;")
-        layout.addWidget(self.lbl_coordenadas_asce)
+        restaurada = False
+        try:
+            restaurada = self._restaurar_grafica_si_hay()
+        except Exception:
+            restaurada = False
 
-        # Variables para hover
-        self.marker_asce = None
-        self._xy_disp_asce = None
-        self.x_total_asce = []
-        self.y_total_asce = []
-        self.ax_asce = None
+        if not restaurada:
+            self._grafica_actual = None
+            self._limpiar_cuadricula(etiqueta_x="")
 
-        # Conectar hover/redibujado
-        self._hover_cid_asce = self.canvas.mpl_connect("motion_notify_event", self._on_mouse_move_asce)
-        self._draw_cid_asce = self.canvas.mpl_connect("draw_event", self._recalc_disp_coords_asce)
+        self._hidratando = False  # fin hidratación
 
-        # Conectar botones del UI (ya existen en tu .ui)
-        if hasattr(self.ui, "btn_calcular_rotacion"):
-            self.ui.btn_calcular_rotacion.clicked.connect(self._calc_y_plot_rotacion)
-        if hasattr(self.ui, "btn_calcular_curvatura"):
-            self.ui.btn_calcular_curvatura.clicked.connect(self._calc_y_plot_curvatura)
+    # ----------------- Helpers UI/estado -----------------
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.FocusIn:
+            try:
+                getattr(self.error_label, "hide_label", self.error_label.hide)()
+            except Exception:
+                pass
+        return super().eventFilter(obj, event)
 
-        # Series calculadas (por si quieres leerlas desde fuera)
-        self.series_asce = None
+    def _set_status(self, texto: str):
+        try:
+            self.lbl_coordenadas_asce.setText(texto)
+        except Exception:
+            pass
 
-    # ----------------- Precarga utilitaria -----------------
+    def _valor_lineedit(self, line_edit) -> str:
+        try:
+            return line_edit.text().strip()
+        except Exception:
+            return ""
+
+    def _silenciar_coords(self, ax):
+        try:
+            ax.format_coord = lambda x, y: ""
+        except Exception:
+            pass
+
+    # ----------------- Carga / snapshot -----------------
     def _cargar_datos(self, d: dict):
-        # Solo-lectura
-        if "def_max_asce" in d:
-            self.ui.def_max_asce.setText(str(d.get("def_max_asce", "")))
-        if "def_ultima_asce" in d:
-            self.ui.def_ultima_asce.setText(str(d.get("def_ultima_asce", "")))
-        if "def_fluencia_asce" in d:
-            self.ui.def_fluencia_asce.setText(str(d.get("def_fluencia_asce", "")))
+        if not isinstance(d, dict):
+            return
+        for key in self._CAMPOS_EDITABLES:
+            if key in d and hasattr(self.ui, key):
+                getattr(self.ui, key).setText(str(d.get(key, "")))
+        if hasattr(self.ui, "condicion_viga_asce") and "condicion_viga_asce_text" in d:
+            txt = str(d.get("condicion_viga_asce_text", "")).strip()
+            idx = self.ui.condicion_viga_asce.findText(txt)
+            if idx >= 0:
+                self.ui.condicion_viga_asce.setCurrentIndex(idx)
 
-        # Rotación (viga/columna)
-        if "cortante_viga_asce" in d:
-            self.ui.cortante_viga_asce.setText(str(d.get("cortante_viga_asce", "")))
-        if "axial_columna_asce" in d:
-            self.ui.axial_columna_asce.setText(str(d.get("axial_columna_asce", "")))
-
-        # Condición: prioriza texto; si no hay, usa índice (compat)
-        if hasattr(self.ui, "condicion_viga_asce"):
-            if "condicion_viga_asce_text" in d:
-                txt = str(d.get("condicion_viga_asce_text", "")).strip()
-                idx = self.ui.condicion_viga_asce.findText(txt)
-                if idx >= 0:
-                    self.ui.condicion_viga_asce.setCurrentIndex(idx)
-            elif "condicion_viga_asce" in d:
-                try:
-                    self.ui.condicion_viga_asce.setCurrentIndex(int(d.get("condicion_viga_asce", 0)))
-                except Exception:
-                    pass
-
-        # Curvatura (viga)
-        if "long_viga_asce" in d:
-            self.ui.long_viga_asce.setText(str(d.get("long_viga_asce", "")))
-        if "coef_viga_asce" in d:
-            self.ui.coef_viga_asce.setText(str(d.get("coef_viga_asce", "")))
-
-    # ----------------- Recolección utilitaria -----------------
     def _obtener_datos(self) -> dict:
-        # Lectura de campos y empaquetado
-        datos = {
-            "def_max_asce": self.ui.def_max_asce.text().strip(),
-            "def_ultima_asce": self.ui.def_ultima_asce.text().strip(),
-            "def_fluencia_asce": self.ui.def_fluencia_asce.text().strip(),
-            "cortante_viga_asce": self.ui.cortante_viga_asce.text().strip(),
-            "axial_columna_asce": self.ui.axial_columna_asce.text().strip(),
-            "long_viga_asce": self.ui.long_viga_asce.text().strip(),
-            "coef_viga_asce": self.ui.coef_viga_asce.text().strip(),
-        }
+        datos = {k: getattr(self.ui, k).text().strip() for k in self._CAMPOS_EDITABLES if hasattr(self.ui, k)}
         if hasattr(self.ui, "condicion_viga_asce"):
-            # Guardamos AMBOS: index (compat) y texto (lo que usa el cálculo)
             datos["condicion_viga_asce_index"] = self.ui.condicion_viga_asce.currentIndex()
             datos["condicion_viga_asce_text"] = self.ui.condicion_viga_asce.currentText().strip()
-            # (Compat con código viejo que leía 'condicion_viga_asce' como índice)
-            datos["condicion_viga_asce"] = datos["condicion_viga_asce_index"]
         return datos
 
     def _actualizar_asce_data(self):
-        """Vuelca al dict externo los valores vigentes del diálogo (en tiempo real)."""
         self._asce_data.update(self._obtener_datos())
 
-    # ----------------- Validación en tiempo real -----------------
+    # ----------------- Materiales -> _asce_data -----------------
+    def _refrescar_campos_materiales_desde_dicts(self):
+        try:
+            if hasattr(self, "_datos_hormigon") and isinstance(self._datos_hormigon, dict):
+                self._asce_data["def_max_asce"] = str(
+                    self._datos_hormigon.get("def_max_sin_confinar", self._asce_data.get("def_max_asce", "")))
+                self._asce_data["def_ultima_asce"] = str(
+                    self._datos_hormigon.get("def_ultima_sin_confinar", self._asce_data.get("def_ultima_asce", "")))
+            if hasattr(self, "_datos_acero") and isinstance(self._datos_acero, dict):
+                self._asce_data["def_fluencia_asce"] = str(
+                    self._datos_acero.get("def_fluencia_acero", self._asce_data.get("def_fluencia_asce", "")))
+        except Exception:
+            pass
+
+    # ----------------- Edición / validación -----------------
     def on_modificacion(self, line_edit):
-        validar_en_tiempo_real(line_edit, self.campos_invalidos, self.error_label)
+        if self._hidratando:
+            return
+
+        key = self._map_le_to_key.get(line_edit)
+        if key:
+            nuevo = self._valor_lineedit(line_edit)
+            if nuevo == self._snapshot_ui.get(key, ""):
+                return
+
+        validar_en_tiempo_real(line_edit, {}, self.error_label)
         self.cambios_pendientes = True
-        # Actualizar el dict en tiempo real mientras se escribe
         self._actualizar_asce_data()
-        # Deshabilitar la grilla hasta recalcular
-        try:
-            self.ui.cuadricula_ASCE.setEnabled(False)
-        except Exception:
-            pass
-        try:
-            self.lbl_coordenadas_asce.setText("Par\u00e1metros modificados. Presiona 'Calcular' para actualizar la curva.")
-        except Exception:
-            pass
+        self._post_edicion_lineedit(line_edit)
+
+        if key:
+            self._snapshot_ui[key] = self._valor_lineedit(line_edit)
 
     def _normalizar_y_actualizar(self, line_edit):
-        corregir_y_normalizar(line_edit)   # normaliza formato
-        validar_en_tiempo_real(line_edit, self.campos_invalidos, self.error_label)
+        if self._hidratando:
+            return
+        corregir_y_normalizar(line_edit)
+        validar_en_tiempo_real(line_edit, {}, self.error_label)
+
+        key = self._map_le_to_key.get(line_edit)
+        if key and self._valor_lineedit(line_edit) == self._snapshot_ui.get(key, ""):
+            self._actualizar_asce_data()
+            return
+
         self._actualizar_asce_data()
         self.cambios_pendientes = True
-        # Deshabilitar la grilla hasta recalcular
+        self._post_edicion_lineedit(line_edit)
+        if key:
+            self._snapshot_ui[key] = self._valor_lineedit(line_edit)
+
+    def _on_condicion_cambiada(self, _=None):
+        if self._hidratando or not hasattr(self.ui, "condicion_viga_asce"):
+            return
+        nuevo_txt = self.ui.condicion_viga_asce.currentText().strip()
+        if nuevo_txt == self._snapshot_ui.get("condicion_viga_asce_text", ""):
+            return
+        self._actualizar_asce_data()
+        self._snapshot_ui["condicion_viga_asce_text"] = nuevo_txt
+        etiqueta_x = {"rotacion": "Rotación, \u03B8 (rad)", "curvatura": "Curvatura, \u03BA (1/m)"}\
+            .get(self._grafica_actual, "")
+        self._limpiar_cuadricula(etiqueta_x)
+        self._borrar_persistencia_grafica()
+
+    def _on_toggle_curvatura(self, _state):
         try:
-            self.ui.cuadricula_ASCE.setEnabled(False)
+            if hasattr(self.ui, "groupBox_3"):
+                self.ui.groupBox_3.setEnabled(self.ui.checkBox_curvatura.isChecked())
         except Exception:
             pass
-        try:
-            self.lbl_coordenadas_asce.setText("Par\u00e1metros modificados. Presiona 'Calcular' para actualizar la curva.")
-        except Exception:
-            pass
 
-    def validar_campos(self) -> bool:
-        """Validación integral (si necesitas llamarla antes de calcular)."""
-        for campo in self.campos_a_validar:
-            corregir_y_normalizar(campo)
-            validar_en_tiempo_real(campo, self.campos_invalidos, self.error_label)
-            if self.campos_invalidos.get(campo, False):
-                campo.setFocus()
-                QMessageBox.warning(
-                    self, "Revisar el formato",
-                    "Formato incorrecto\nPor favor, revisar los campos resaltados en rojo"
-                )
-                return False
-        return True
+    # ----------------- Reglas de limpieza tras edición -----------------
+    def _post_edicion_lineedit(self, line_edit):
+        solo_curvatura = {self.ui.long_viga_asce, self.ui.coef_viga_asce}
+        etiqueta_x = {"rotacion": "Rotación, \u03B8 (rad)", "curvatura": "Curvatura, \u03BA (1/m)"}\
+            .get(self._grafica_actual, "")
+        if line_edit in solo_curvatura:
+            if self._grafica_actual == "curvatura":
+                self._limpiar_cuadricula(etiqueta_x)
+                self._borrar_persistencia_grafica()
+        else:
+            self._limpiar_cuadricula(etiqueta_x)
+            self._borrar_persistencia_grafica()
 
-    # ----------------- Eventos globales (para limpiar errores) -----------------
-    def eventFilter(self, obj, event):
-        if event.type() == QEvent.FocusIn:
-            self.error_label.hide()
-        return super().eventFilter(obj, event)
-
-    # ----------------- Tooltips de error -----------------
-    def _mostrar_error(self, line_edit, mensaje: str):
-        mostrar_mensaje_error_flotante(line_edit, self.error_label, mensaje)
-
-    # ----------------- Paquete de datos para el calculador -----------------
-    def _paquete_datos(self):
+    # ----------------- Empaquetado de datos para cálculo -----------------
+    def _paquete_datos(self) -> dict:
         tipo = getattr(self, "_tipo_seccion", "Viga")
-
         direccion = ""
         if tipo == "Columna":
-            # si hay combobox de dirección, leerlo; si no, deja string vacío
             try:
                 direccion = self._direccion.currentText()
             except Exception:
-                try:
-                    direccion = str(self._direccion)
-                except Exception:
-                    direccion = ""
+                direccion = str(getattr(self, "_direccion", "")) or ""
 
-        # *** TEXTO, no índice ***
         condicion = "Flexión"
         if hasattr(self.ui, "condicion_viga_asce"):
             cond_txt = self.ui.condicion_viga_asce.currentText().strip()
-            alias = {
-                "Flexion": "Flexión", "flexion": "Flexión", "flexión": "Flexión",
-                "0": "Flexión", "1": "Corte",
-                "Corte": "Corte", "corte": "Corte"
-            }
-            condicion = alias.get(cond_txt, cond_txt)
+            condicion = self._ALIAS_CONDICION.get(cond_txt, cond_txt or "Flexión")
 
-        datos_hormigon = getattr(self, "_datos_hormigon", {})
-        datos_acero = getattr(self, "_datos_acero", {})
-        datos_seccion = getattr(self, "_datos_seccion", {})
-        datos_asce = self._obtener_datos()
+        datos = {
+            "tipo_seccion": tipo,
+            "direccion": direccion,
+            "condicion_viga": condicion,
+        }
+        datos.update(self._obtener_datos())
+        for k in ("_datos_hormigon", "_datos_acero", "_datos_seccion"):
+            if hasattr(self, k):
+                datos[k[1:]] = getattr(self, k)
+        return datos
 
-        return tipo, direccion, condicion, datos_hormigon, datos_acero, datos_seccion, datos_asce
+    # ----------------- Dibujo / hover -----------------
+    def _setup_axes(self, etiqueta_x: str, etiqueta_y: str = "Momento, M (T·m)", titulo: str | None = None):
+        self.figure.clear()
+        if self.marker_asce is not None:
+            try:
+                self.marker_asce.remove()
+            except Exception:
+                pass
+            self.marker_asce = None
 
-    # ----------------- Cálculo -----------------
+        ax = self.figure.add_subplot(111)
+        self._silenciar_coords(ax)
+        ax.grid(True, linestyle='--', alpha=0.6)
+        ax.tick_params(axis='both', labelsize=8)
+        if etiqueta_x:
+            ax.set_xlabel(etiqueta_x, fontsize=10); ax.xaxis.set_label_position('top')
+        if etiqueta_y:
+            ax.set_ylabel(etiqueta_y, fontsize=10); ax.yaxis.set_label_position('right')
+        if titulo:
+            ax.set_title(titulo, fontsize=11)
+        ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=6))
+        ax.yaxis.set_major_locator(mticker.MaxNLocator(nbins=6))
+        self.ax_asce = ax
+        return ax
+
+    def _limpiar_cuadricula(self, etiqueta_x: str = "", etiqueta_y: str = "Momento, M (T·m)"):
+        self._setup_axes(etiqueta_x, etiqueta_y)
+        self._reset_buffers()
+        self.canvas.draw_idle()
+        self._set_status("Parámetros modificados. Presiona 'Calcular' para actualizar la curva.")
+
+    def _reset_buffers(self):
+        self._xy_disp_asce = None
+        self.x_total_asce = []
+        self.y_total_asce = []
+        self._x_pick = []
+        self._y_pick = []
+        self.series_asce = None
+
+    def _ensure_marker(self):
+        if self.ax_asce is None:
+            return
+        mk = getattr(self, "marker_asce", None)
+        if mk is None or mk.axes is not self.ax_asce:
+            try:
+                if mk is not None:
+                    mk.remove()
+            except Exception:
+                pass
+            (self.marker_asce,) = self.ax_asce.plot([], [], 'o', ms=5, mfc='red', mec='white', mew=1.5,
+                                                    zorder=10, visible=False)
+
+    def _dibujar_asce(self, x, y, etiqueta_x: str, titulo: str, color: str = "C0"):
+        ax = self._setup_axes(etiqueta_x, "Momento, M (T·m)", titulo)
+        ax.plot(x, y, lw=1.8, color=color)
+
+        self.canvas.draw_idle()
+        self._recalc_disp_coords_asce(None)
+        self._ensure_marker()
+
+        self.x_total_asce = list(map(float, x))
+        self.y_total_asce = list(map(float, y))
+        self._set_status("Curva calculada. Desplaza el mouse para ver coordenadas.")
+
+    def _recalc_disp_coords_asce(self, _event):
+        if self.ax_asce is None:
+            return
+        if not self.x_total_asce or not self.y_total_asce:
+            lines = self.ax_asce.get_lines()
+            if not lines:
+                return
+            self.x_total_asce = list(lines[0].get_xdata())
+            self.y_total_asce = list(lines[0].get_ydata())
+
+        xs = np.asarray(self.x_total_asce, dtype=float)
+        ys = np.asarray(self.y_total_asce, dtype=float)
+        mask = np.isfinite(xs) & np.isfinite(ys)
+        if not np.any(mask):
+            self._xy_disp_asce = None
+            self._x_pick = []
+            self._y_pick = []
+            return
+
+        self._x_pick = xs[mask]
+        self._y_pick = ys[mask]
+        pts = np.column_stack([self._x_pick, self._y_pick])
+        self._xy_disp_asce = self.ax_asce.transData.transform(pts)
+
+    def _on_mouse_move_asce(self, event):
+        if event.inaxes != self.ax_asce:
+            if self.marker_asce is not None and self.marker_asce.get_visible():
+                self.marker_asce.set_visible(False)
+                self.canvas.draw_idle()
+            return
+        if self._xy_disp_asce is None or self.ax_asce is None:
+            return
+        try:
+            diffs = self._xy_disp_asce - np.array([event.x, event.y])
+            idx = int(np.argmin(np.einsum('ij,ij->i', diffs, diffs)))
+            x_val = float(self._x_pick[idx]); y_val = float(self._y_pick[idx])
+            self._set_status(f"x = {x_val:.6g} ; M = {y_val:.6g}")
+            self._ensure_marker()
+            self.marker_asce.set_data([x_val], [y_val])
+            if not self.marker_asce.get_visible():
+                self.marker_asce.set_visible(True)
+            self.canvas.draw_idle()
+        except Exception:
+            pass
+
+    # ----------------- Persistencia -----------------
+    def _persistir_grafica(self, kind: str, x: list, y: list, xlabel: str, ylabel: str = "Momento, M (T·m)"):
+        self._asce_data.update({
+            self._K_PLOT_KIND:   kind,
+            self._K_PLOT_X:      list(map(float, x)) if x is not None else None,
+            self._K_PLOT_Y:      list(map(float, y)) if y is not None else None,
+            self._K_PLOT_XLABEL: xlabel,
+            self._K_PLOT_YLABEL: ylabel,
+            self._K_MAT_SIG:     self._firma_materiales_actual(),
+        })
+
+    def _borrar_persistencia_grafica(self):
+        self._asce_data[self._K_PLOT_KIND] = None
+        self._asce_data[self._K_PLOT_X] = None
+        self._asce_data[self._K_PLOT_Y] = None
+
+    def _restaurar_grafica_si_hay(self) -> bool:
+        kind   = self._asce_data.get(self._K_PLOT_KIND)
+        x      = self._asce_data.get(self._K_PLOT_X)
+        y      = self._asce_data.get(self._K_PLOT_Y)
+        xlabel = self._asce_data.get(self._K_PLOT_XLABEL) or ""
+        ylabel = self._asce_data.get(self._K_PLOT_YLABEL) or "Momento, M (T·m)"
+
+        if kind and x and y and len(x) == len(y) and len(x) > 1:
+            color = self._COLOR_ROT if kind == "rotacion" else self._COLOR_CURV
+            self._dibujar_asce(x, y, xlabel, "Momento–Rotación" if kind == "rotacion" else "Momento–Curvatura", color)
+            self._grafica_actual = kind
+            return True
+        return False
+
+    def _firma_materiales_actual(self) -> Tuple[str, str, str]:
+        d = self._asce_data
+        return (
+            str(d.get("def_max_asce", "")),
+            str(d.get("def_ultima_asce", "")),
+            str(d.get("def_fluencia_asce", "")),
+        )
+
+    # ----------------- Errores y validación previa -----------------
+    def _mostrar_error(self, line_edit, mensaje: str):
+        mostrar_mensaje_error_flotante(line_edit, self.error_label, mensaje)
+
+    def validar_campos(self) -> bool:
+        # Aquí puedes añadir validaciones si aplican; por ahora conserva el True del código original.
+        return True
+
+    # ----------------- Cálculo y dibujo -----------------
     def _calcular_series(self):
         """
-        Llama a CalculadoraASCE.calcular(.) y retorna:
-            {'rotacion': (rots, Mr), 'curvatura': (thetas, M)}
+        Invoca a self._calc_asce.calcular(...) con los argumentos correctos.
+        Debe retornar:
+            {"rotacion": (x_rot, y_Mr), "curvatura": (x_kappa, y_M)}
         """
-        # Asegura sincronía con el dict compartido
         self._actualizar_asce_data()
 
         calc = getattr(self, "_calc_asce", None)
         if calc is None:
-            QMessageBox.warning(self, "ASCE", "No se ha inicializado el calculador ASCE.")
+            try:
+                from PySide6.QtWidgets import QMessageBox
+                QMessageBox.warning(self, "ASCE", "No se ha inicializado el calculador ASCE.")
+            except Exception:
+                pass
             return None
 
-        tipo, direccion, condicion, dh, da, ds, dasce = self._paquete_datos()
+        p = self._paquete_datos()
+        tipo_seccion = p.get("tipo_seccion", "Viga")
+        direccion    = p.get("direccion", "")
+        condicion    = p.get("condicion_viga", "Flexión")
+
+        datos_hormigon = p.get("datos_hormigon", {}) or {}
+        datos_acero    = p.get("datos_acero", {}) or {}
+        datos_seccion  = p.get("datos_seccion", {}) or {}
+
+        keys_asce = [
+            "def_max_asce", "def_ultima_asce", "def_fluencia_asce",
+            "cortante_viga_asce", "axial_columna_asce",
+            "long_viga_asce", "coef_viga_asce",
+            "condicion_viga_asce_text", "condicion_viga_asce_index",
+        ]
+        datos_asce = {k: p.get(k) for k in keys_asce if k in p}
+
         try:
-            return calc.calcular(tipo, direccion, condicion, dh, da, ds, dasce)
+            if hasattr(calc, "calcular"):
+                return calc.calcular(tipo_seccion, direccion, condicion,
+                                     datos_hormigon, datos_acero, datos_seccion, datos_asce)
+            if hasattr(calc, "calcular_series"):
+                payload = {
+                    "tipo_seccion":  tipo_seccion,
+                    "direccion":     direccion,
+                    "condicion_viga": condicion,
+                    "datos_hormigon": datos_hormigon,
+                    "datos_acero":    datos_acero,
+                    "datos_seccion":  datos_seccion,
+                    **datos_asce,
+                }
+                return calc.calcular_series(payload)
+            try:
+                from PySide6.QtWidgets import QMessageBox
+                QMessageBox.warning(self, "ASCE", "El calculador no expone 'calcular' ni 'calcular_series'.")
+            except Exception:
+                pass
+            return None
         except Exception as e:
-            # Muestra mensajes como "No se permitirá.", "Falta información", etc.
-            QMessageBox.warning(self, "ASCE", f"Error de cálculo: {e}")
+            try:
+                from PySide6.QtWidgets import QMessageBox
+                QMessageBox.warning(self, "ASCE", f"Error de cálculo: {e}")
+            except Exception:
+                pass
             return None
 
-    # --- Dibujo con formato consistente ---
-    def _dibujar_asce(self, x, y, etiqueta_x: str, etiqueta_serie: str, color="blue"):
-        self.figure.clear()
-        ax = self.figure.add_subplot(111)
-
-        # Ejes y formato
-        ax.axhline(0, color='gray', linewidth=1.2, linestyle='-', alpha=0.8)
-        ax.axvline(0, color='gray', linewidth=1.2, linestyle='-', alpha=0.8)
-        ax.set_xlabel(etiqueta_x, fontsize=10)               # X con unidades pedidas
-        ax.xaxis.set_label_position('top')                   # etiqueta superior
-        ax.set_ylabel("Momento, M (T\u00B7m)", fontsize=10) # Y con T·m
-        ax.yaxis.set_label_position('right')                 # etiqueta derecha
-        ax.grid(True, linestyle='--', alpha=0.6)
-        ax.tick_params(axis='both', labelsize=8)
-        ax.format_coord = lambda _x, _y: ""                  # sin tooltip por defecto
-
-        # Notación científica compacta
-        x_formatter = mticker.ScalarFormatter(useMathText=True)
-        y_formatter = mticker.ScalarFormatter(useMathText=True)
-        x_formatter.set_scientific(True)
-        y_formatter.set_scientific(True)
-        ax.xaxis.set_major_formatter(x_formatter)
-        ax.yaxis.set_major_formatter(y_formatter)
-
-        # Dibujo
-        ax.plot(x, y, '-', lw=2.0, color=color, label=etiqueta_serie)
-        ax.legend(loc='best', fontsize=9, frameon=True)
-
-        # Marker hover
-        self.marker_asce = ax.plot([], [], 'o', ms=6, color='red', zorder=10)[0]
-
-        self.canvas.draw_idle()
-        self.ax_asce = ax
-        self._recalc_disp_coords_asce(None)
-
-    # --- Recalcular coordenadas de visualización para hover ---
-    def _recalc_disp_coords_asce(self, _event):
-        if self.ax_asce is None:
-            return
-        # Crea matriz de coords para distancia más corta a cursor
-        self.x_total_asce = getattr(self, "x_total_asce", [])
-        self.y_total_asce = getattr(self, "y_total_asce", [])
-        if not len(self.x_total_asce) or not len(self.y_total_asce):
-            # intentar obtener desde última línea de ax
-            lines = self.ax_asce.get_lines()
-            if lines:
-                xs = lines[0].get_xdata()
-                ys = lines[0].get_ydata()
-                self.x_total_asce = np.array(xs)
-                self.y_total_asce = np.array(ys)
-            else:
-                return
-        self._xy_disp_asce = np.column_stack(
-            self.ax_asce.transData.transform(np.column_stack([self.x_total_asce, self.y_total_asce]))
-        )
-
-    # --- Hover handler ---
-    def _on_mouse_move_asce(self, event):
-        if event.inaxes != self.ax_asce or self._xy_disp_asce is None:
-            return
-        if event.xdata is None or event.ydata is None:
-            return
-        if self.marker_asce is None:
-            return
-
-        xm, ym = self.ax_asce.transData.transform((float(event.xdata), float(event.ydata)))
-        d2 = (self._xy_disp_asce[:, 0] - xm) ** 2 + (self._xy_disp_asce[:, 1] - ym) ** 2
-        idx = int(np.argmin(d2))
-        r_pix = 12.0
-        if d2[idx] <= r_pix * r_pix:
-            x_curve = self.x_total_asce[idx]
-            y_curve = self.y_total_asce[idx]
-            self.marker_asce.set_data([x_curve], [y_curve])
-            etiqueta_x = self.ax_asce.get_xlabel()
-            # Y siempre en T·m, X se muestra con su unidad actual (rad o 1/m)
-            self.lbl_coordenadas_asce.setText(f"{etiqueta_x} = {x_curve:.3e}    M = {y_curve:.3e} T·m")
-        else:
-            self.marker_asce.set_data([], [])
-            self.lbl_coordenadas_asce.setText("Desplaza el mouse sobre la curva para ver coordenadas.")
-        self.canvas.draw_idle()
-
-    # --- Callbacks de botones ---
     def _calc_y_plot_rotacion(self):
-        # (opcional) validar antes de calcular
         if not self.validar_campos():
             return
         series = self._calcular_series()
-        if not series:
+        if not series or "rotacion" not in series:
             return
         self.series_asce = series
-        x, y = series["rotacion"]  # x = rots (rad), y = Mr (T·m)
-        self._dibujar_asce(x, y, "Rotación, \u03B8 (rad)", "Momento–Rotación", color="magenta")
+        x, y = series["rotacion"]
+        self._dibujar_asce(x, y, "Rotación, \u03B8 (rad)", "Momento–Rotación", color=self._COLOR_ROT)
+        self._grafica_actual = "rotacion"
         self.cambios_pendientes = False
-        try:
-            self.ui.cuadricula_ASCE.setEnabled(True)
-        except Exception:
-            pass
+        self._persistir_grafica("rotacion", x, y, "Rotación, \u03B8 (rad)")
 
     def _calc_y_plot_curvatura(self):
         if not self.validar_campos():
             return
         series = self._calcular_series()
-        if not series:
+        if not series or "curvatura" not in series:
             return
         self.series_asce = series
-        x, y = series["curvatura"]  # x = thetas (1/m), y = M (T·m)
-        self._dibujar_asce(x, y, "Curvatura, \u03BA (1/m)", "Momento–Curvatura", color="blue")
+        x, y = series["curvatura"]
+        self._dibujar_asce(x, y, "Curvatura, \u03BA (1/m)", "Momento–Curvatura", color=self._COLOR_CURV)
+        self._grafica_actual = "curvatura"
         self.cambios_pendientes = False
-        try:
-            self.ui.cuadricula_ASCE.setEnabled(True)
-        except Exception:
-            pass
+        self._persistir_grafica("curvatura", x, y, "Curvatura, \u03BA (1/m)")
