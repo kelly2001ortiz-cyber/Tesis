@@ -243,6 +243,15 @@ class VentanaPrincipal(QMainWindow):
         mark = "*" if self._is_dirty else ""
         self.setWindowTitle(f"{self._app_title} - {name}{mark}")
 
+    def _invalidar_asce_persistencia(self):
+        if not hasattr(self, "asce_data") or not isinstance(self.asce_data, dict):
+            return
+        for k in ("_asce_plot_kind", "_asce_plot_x", "_asce_plot_y",
+                  "_asce_plot_xlabel", "_asce_plot_ylabel", "_asce_mat_signature"):
+            # poner en None o eliminar; cualquiera sirve. Aquí, None.
+            if k in self.asce_data:
+                self.asce_data[k] = None
+
     def _project_to_dict(self):
         """Empaqueta todos los datos que deseamos guardar."""
         payload = {
@@ -502,12 +511,6 @@ class VentanaPrincipal(QMainWindow):
         # 7) Abrir modal; al cerrar, self.asce_data ya quedó actualizada en tiempo real
         self.ventana_definir_asce.exec()
 
-        # 8) Invalida resultados previos para forzar recálculo donde corresponda
-        self.mc_matriz = None
-        self.mc_series = {}
-        self.di_matriz = None
-        self.di_series = {}
-
     def _apagar_capa_fibras(self):
         accion = getattr(self.ui, "actionCapas_de_Fibras_2", None)
         if accion is not None and accion.isChecked():
@@ -714,6 +717,7 @@ class VentanaPrincipal(QMainWindow):
             return
         self._set_default_data()
         # Limpiar ruta y resultados
+        self._invalidar_asce_persistencia()
         self._project_path = None
         self.mc_matriz = None
         self.mc_series = {}

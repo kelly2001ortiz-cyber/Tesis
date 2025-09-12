@@ -19,7 +19,9 @@ class SeccionVigaGrafico:
             "disenar_viga_diametro_superior",
             "disenar_viga_diametro_inferior",
             "disenar_viga_varillas_superior",
-            "disenar_viga_varillas_inferior"
+            "disenar_viga_varillas_inferior",
+            "disenar_viga_diametro_transversal",
+            "disenar_viga_espaciamiento",
         ]
 
         for nombre in campos:
@@ -40,9 +42,14 @@ class SeccionVigaGrafico:
                 pass
             owner = getattr(self.ui, "_owner", None)
             if owner is not None:
-                owner.invalidar_resultados_y_apagar_fibras()
+                # Llama al helper que agregaste en VentanaPrincipal
+                if hasattr(owner, "_invalidar_asce_persistencia"):
+                    owner._invalidar_asce_persistencia()
+                # 3) Mantén invalidación de resultados/ fibras
+                if hasattr(owner, "invalidar_resultados_y_apagar_fibras"):
+                    owner.invalidar_resultados_y_apagar_fibras()
             self.dibujar_viga()
-
+        
     def dibujar_viga(self):
         layout = self.container.layout()
         if layout is None:
@@ -65,7 +72,6 @@ class SeccionVigaGrafico:
         n_inf = int(parsear_numero(self.datos.get("disenar_viga_varillas_inferior", "0")))
         d_sup = parsear_numero(self.datos.get("disenar_viga_diametro_superior", "0"))
         d_inf = parsear_numero(self.datos.get("disenar_viga_diametro_inferior", "0"))
-
         # Crear y agregar el widget gráfico
         grafico = dibujar_seccion_viga(
             b=b,

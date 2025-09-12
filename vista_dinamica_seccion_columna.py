@@ -39,7 +39,10 @@ class SeccionColumnaGrafico:
             "disenar_columna_diametro_transversal",
             "disenar_columna_varillasX_2",
             "disenar_columna_varillasY_2",
-            "disenar_columna_diametro_longitudinal_2"
+            "disenar_columna_diametro_longitudinal_2",
+            "disenar_columna_ramalesX",
+            "disenar_columna_ramalesY",
+            "disenar_columna_espaciamiento",
         ]
 
         for nombre in campos:
@@ -61,7 +64,12 @@ class SeccionColumnaGrafico:
                 pass
             owner = getattr(self.ui, "_owner", None)
             if owner is not None:
-                owner.invalidar_resultados_y_apagar_fibras()
+                # Llama al helper que agregaste en VentanaPrincipal
+                if hasattr(owner, "_invalidar_asce_persistencia"):
+                    owner._invalidar_asce_persistencia()
+                # 3) Mantén invalidación de resultados/ fibras
+                if hasattr(owner, "invalidar_resultados_y_apagar_fibras"):
+                    owner.invalidar_resultados_y_apagar_fibras()
             self.dibujar_columna()
 
     def _limpiar_layout(self, layout):
