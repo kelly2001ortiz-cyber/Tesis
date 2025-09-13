@@ -144,6 +144,7 @@ class VentanaPrincipal(QMainWindow):
             "disenar_columna_ramalesY": "4",
             "disenar_columna_diametro_transversal": "12",
             "disenar_columna_espaciamiento": "10",
+            "disenar_columna_diametro_longitudinal_esq": "30",
         }
         self.seccion_viga_data = {
             "disenar_viga_base": "40",

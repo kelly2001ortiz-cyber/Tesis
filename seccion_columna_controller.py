@@ -24,6 +24,7 @@ class SeccionColumnaController(QObject):  # <--- Ahora hereda de QObject
             self.ui.disenar_columna_ramalesY,
             self.ui.disenar_columna_diametro_transversal,
             self.ui.disenar_columna_espaciamiento,
+            self.ui.disenar_columna_diametro_longitudinal_esq,
         ]
         self.campos_invalidos = {c: False for c in self.campos_a_validar}
         self.error_label = ErrorFloatingLabel(self.ui.pg_columna)
@@ -71,7 +72,8 @@ class SeccionColumnaController(QObject):  # <--- Ahora hereda de QObject
         self.ui.disenar_columna_ramalesY.setText(datos.get("disenar_columna_ramalesY", ""))
         self.ui.disenar_columna_diametro_transversal.setText(datos.get("disenar_columna_diametro_transversal", ""))
         self.ui.disenar_columna_espaciamiento.setText(datos.get("disenar_columna_espaciamiento", ""))
-
+        self.ui.disenar_columna_diametro_longitudinal_esq.setText(datos.get("disenar_columna_diametro_longitudinal_esq", ""))
+        
     def on_modificacion(self, line_edit):
         validar_en_tiempo_real(line_edit, self.campos_invalidos, self.error_label)
 
@@ -88,6 +90,7 @@ class SeccionColumnaController(QObject):  # <--- Ahora hereda de QObject
             "disenar_columna_ramalesY": self.ui.disenar_columna_ramalesY.text(),
             "disenar_columna_diametro_transversal": self.ui.disenar_columna_diametro_transversal.text(),
             "disenar_columna_espaciamiento": self.ui.disenar_columna_espaciamiento.text(),
+            "disenar_columna_diametro_longitudinal_esq": self.ui.disenar_columna_diametro_longitudinal_esq.text(),
         }
 
     def validar_campos(self):

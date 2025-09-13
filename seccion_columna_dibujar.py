@@ -24,14 +24,13 @@ class CustomToolbar(NavigationToolbar2QT):
     ]
 
 class dibujar_seccion_columna(QWidget):
-    def __init__(self, b, h, r, dest, n_x, n_y, dlong, *args, **kwargs):
+    def __init__(self, b, h, r, dest, n_x, n_y, d_corner, d_edge, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.figure, self.ax = plt.subplots()
         self.canvas = FigureCanvas(self.figure)
         self.toolbar = CustomToolbar(self.canvas, self)
         self.toolbar.setMaximumHeight(28)
-        self.toolbar.coordinates = False
 
         self.figure.subplots_adjust(left=0, right=1, top=1, bottom=0)
         self.ax.set_position([0, 0, 1, 1])
@@ -47,13 +46,13 @@ class dibujar_seccion_columna(QWidget):
         layout.addWidget(self.canvas)
         layout.addWidget(self.label)
 
-        self.b, self.h, self.r, self.dest, self.dlong = b, h, r, dest, dlong
+        self.b, self.h, self.r, self.dest, self.d_edge, self.d_corner = b, h, r, dest, d_edge, d_corner
         self.rec = r + 0.5 * dest
         self.n_x, self.n_y = n_x, n_y
 
         self.highlight_ms = 7.5
         self.pix_tol = 10.0
-        self.view_margin = 0.05
+        self.view_margin = 0.4
 
         self._cover_patch = None
         self._core_rect = None
@@ -121,7 +120,7 @@ class dibujar_seccion_columna(QWidget):
         self.ax.text(self.b/10 + 4, 0, 'X', color='#00FF00', fontsize=8, clip_on=True)
         self.ax.text(0, self.h/10 + 4, 'Y', color='#00FF00', fontsize=8, clip_on=True)
 
-        self.barras_longitudinales(self.n_x, self.n_y, self.dlong, x0, y0)
+        self.barras_longitudinales(self.n_x, self.n_y, self.d_edge, x0, y0)
 
         self.ax.set_aspect('equal', adjustable='datalim')
         mx, my = self.view_margin * self.h, self.view_margin * self.h
@@ -130,33 +129,46 @@ class dibujar_seccion_columna(QWidget):
         self.ax.axis('off')
         self.canvas.draw()
 
-    def barras_longitudinales(self, n_x, n_y, dlong, x0, y0):
+    def barras_longitudinales(self, n_x, n_y, d_edge, x0, y0):
         if getattr(self, "_bars_pc", None) is not None:
             try: self._bars_pc.remove()
             except Exception: pass
             self._bars_pc = None
 
-        # centros “pegados” al contorno interior
-        x_start, x_end = x0 + self.rec + self.dest/2 + dlong/2, x0 + self.b - self.rec - self.dest/2 - dlong/2
-        y_start, y_end = y0 + self.rec + self.dest/2 + dlong/2, y0 + self.h - self.rec - self.dest/2 - dlong/2
+        # centros barras laterales
+        x_start_edge, x_end_edge = x0 + self.rec + self.dest/2 + d_edge/2, x0 + self.b - self.rec - self.dest/2 - d_edge/2
+        y_start_edge, y_end_edge = y0 + self.rec + self.dest/2 + d_edge/2, y0 + self.h - self.rec - self.dest/2 - d_edge/2
 
-        xs     = np.linspace(x_start, x_end, n_x)
-        ys_mid = np.linspace(y_start, y_end, n_y)[1:-1]
+        xs_edge = np.linspace(x_start_edge, x_end_edge, n_x)[1:-1]
+        ys_edge = np.linspace(y_start_edge, y_end_edge, n_y)[1:-1]
 
         circles, centers = [], []
 
-        # filas inferior y superior
-        for x in xs:
-            circles.append(patches.Circle((x, y_start), dlong/2))
-            circles.append(patches.Circle((x, y_end),   dlong/2))
-            centers.append((x, y_start))
-            centers.append((x, y_end))
+        # filas inferior y superior (sin esquinas)
+        for x in xs_edge:
+            circles.append(patches.Circle((x, y_start_edge), d_edge/2))
+            circles.append(patches.Circle((x, y_end_edge),   d_edge/2))
+            centers.append((x, y_start_edge))
+            centers.append((x, y_end_edge))
 
-        # columnas izquierda y derecha (sin duplicar esquinas)
-        for y in ys_mid:
-            circles.append(patches.Circle((x_start, y), dlong/2))
-            circles.append(patches.Circle((x_end,   y), dlong/2))
-            centers.append((x_start, y)); centers.append((x_end, y))
+        # columnas izquierda y derecha (sin esquinas)
+        for y in ys_edge:
+            circles.append(patches.Circle((x_start_edge, y), d_edge/2))
+            circles.append(patches.Circle((x_end_edge,   y), d_edge/2))
+            centers.append((x_start_edge, y))
+            centers.append((x_end_edge, y))
+
+        # centros barras esquineras
+        x_start_corner, x_end_corner = x0 + self.rec + self.dest/2 + self.d_corner/2, x0 + self.b - self.rec - self.dest/2 - self.d_corner/2
+        y_start_corner, y_end_corner = y0 + self.rec + self.dest/2 + self.d_corner/2, y0 + self.h - self.rec - self.dest/2 - self.d_corner/2
+        xs_corner = np.linspace(x_start_corner, x_end_corner, 2)
+
+        # esquinas
+        for x in xs_corner:
+            circles.append(patches.Circle((x, y_start_corner), self.d_corner/2))
+            circles.append(patches.Circle((x, y_end_corner),   self.d_corner/2))
+            centers.append((x, y_start_corner))
+            centers.append((x, y_end_corner))
 
         # una sola colección; el radio queda EXACTO en unidades de datos
         self._bars_pc = self.ax.add_collection(
@@ -165,8 +177,7 @@ class dibujar_seccion_columna(QWidget):
         # reemplaza _C para el hover con los centros de barras
         self.circulos_centros = centers
         self._C = np.asarray(centers, dtype=float)
-        # self.canvas.draw_idle()
-
+        
     def _on_draw(self, event=None):
         trans = self.ax.transData.transform
         self._Vpx = trans(self._V) if self._V.size else np.empty((0, 2))

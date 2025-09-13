@@ -43,6 +43,7 @@ class SeccionColumnaGrafico:
             "disenar_columna_ramalesX",
             "disenar_columna_ramalesY",
             "disenar_columna_espaciamiento",
+            "disenar_columna_diametro_longitudinal_esq",
         ]
 
         for nombre in campos:
@@ -130,7 +131,8 @@ class SeccionColumnaGrafico:
         dest = parsear_numero(self.datos.get("disenar_columna_diametro_transversal", "0"))
         n_x = int(parsear_numero(self.datos.get("disenar_columna_varillasX_2", "0")))
         n_y = int(parsear_numero(self.datos.get("disenar_columna_varillasY_2", "0")))
-        dlong = parsear_numero(self.datos.get("disenar_columna_diametro_longitudinal_2", "0"))
+        d_long = parsear_numero(self.datos.get("disenar_columna_diametro_longitudinal_2", "0"))
+        d_corner = parsear_numero(self.datos.get("disenar_columna_diametro_longitudinal_esq", "0"))
 
         # Crear y agregar el widget gráfico
         grafico = dibujar_seccion_columna(
@@ -140,7 +142,8 @@ class SeccionColumnaGrafico:
             dest=dest / 10,     # mm -> cm
             n_x=n_x,
             n_y=n_y,
-            dlong=dlong / 10    # mm -> cm
+            d_corner=d_corner / 10, # mm -> cm
+            d_edge=d_long / 10   # mm -> cm
         )
 
         # Aplicar visibilidad (ocultar toolbar/coords si corresponde SOLO en este uso)
