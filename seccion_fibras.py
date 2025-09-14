@@ -20,7 +20,8 @@ class CustomToolbar(NavigationToolbar2QT):
     ]
 
 class dibujar_fibras(QWidget):
-    def __init__(self, b, h, r, dest, n_x, n_y, *args, **kwargs):
+
+    def __init__(self, b, h, r, dest, n_x, n_y, direccion, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.figure, self.ax = plt.subplots()
@@ -46,6 +47,7 @@ class dibujar_fibras(QWidget):
         self.b, self.h, self.r, self.dest = b, h, r, dest
         self.rec = r + 0.5 * dest
         self.n_x, self.n_y = n_x, n_y
+        self.direccion = direccion
 
         self.highlight_ms = 7.5
         self.pix_tol = 10.0
@@ -105,33 +107,98 @@ class dibujar_fibras(QWidget):
         self.canvas.draw()
 
     def rejilla(self):
-        x_edges = np.unique(np.concatenate([
-            np.linspace(-self.b/2, self.b/2, self.n_x+1), [-self.b/2 + self.rec, self.b/2 - self.rec]
-        ]))
-        y_edges = np.unique(np.concatenate([
-            np.linspace(-self.h/2, self.h/2, self.n_y+1), [-self.h/2 + self.rec, self.h/2 - self.rec]
-        ]))
-        x_edges = x_edges[(x_edges >= -self.b/2) & (x_edges <= self.b/2)]
-        y_edges = y_edges[(y_edges >= -self.h/2) & (y_edges <= self.h/2)]
-        x_edges.sort(); y_edges.sort()
+        # geometria base
+        xL, xR = -self.b/2,  self.b/2
+        xiL, xiR = xL + self.rec, xR - self.rec
+        yB, yT = -self.h/2,  self.h/2
+        yiB, yiT = yB + self.rec, yT - self.rec
 
-        X, Y = np.meshgrid(x_edges, y_edges, indexing="xy")
-        self.vertices = list(zip(X.ravel(), Y.ravel()))
+        # contornos
+        self.ax.add_patch(patches.Rectangle((xL,  yB),  2*xR,  2*yT,  fill=False, ec='k', lw=0.5, clip_on=True))
+        self.ax.add_patch(patches.Rectangle((xiL, yiB), 2*xiR, 2*yiT, fill=False, ec='k', lw=0.5, clip_on=True))
 
-        v_lines = [((x, -self.h/2), (x, self.h/2)) for x in x_edges]
-        h_lines = [((-self.b/2, y), (self.b/2, y)) for y in y_edges]
-        lc_v = LineCollection(v_lines, linewidths=0.5, colors="k", capstyle="butt")
-        lc_h = LineCollection(h_lines, linewidths=0.5, colors="k", capstyle="butt")
-        lc_v.set_snap(True); lc_h.set_snap(True)
-        self.ax.add_collection(lc_v); self.ax.add_collection(lc_h)
+        # direccion de analisis
+        try:
+            texto_dir = self.direccion.currentText().strip()
+        except Exception:
+            # Si por alguna razón no es QComboBox, conviértelo a str
+            texto_dir = str(self.direccion).strip() if self.direccion is not None else "Dirección Y"
 
+        es_x = (texto_dir == "Dirección X")
+        es_y = (texto_dir == "Dirección Y")
+
+        if es_x:
+            # ====== Fibras en direccion X ======
+            x_lines = np.unique(np.concatenate([np.linspace(xL, xR, self.n_x + 1), [xiL, xiR]]))
+            v_lines = [((x, yB), (x, yT)) for x in x_lines]
+            lc_v = LineCollection(v_lines, lw=0.5, colors="k", capstyle="butt")
+            lc_v.set_snap(True)
+            self.ax.add_collection(lc_v)
+
+            horizontales = [
+                (yB, xL, xR),    # borde inferior exterior
+                (yT, xL, xR),    # borde superior exterior
+                (yiB, xiL, xiR), # límite inferior del núcleo
+                (yiT, xiL, xiR)  # límite superior del núcleo
+            ]
+            verts = []
+            for x in x_lines:
+                for y, x0, x1 in horizontales:
+                    if x0 <= x <= x1:
+                        verts.append((x, y))
+
+            x_edges = x_lines; x_edges.sort()
+            y_edges = np.array([yB, yiB, yiT, yT]); y_edges.sort()
+
+        elif es_y:
+            # ====== Fibras en direccion Y ======
+            y_lines = np.unique(np.concatenate([np.linspace(yB, yT, self.n_y + 1), [yiB, yiT]]))
+            h_lines = [((xL, y), (xR, y)) for y in y_lines]
+            lc_h = LineCollection(h_lines, linewidths=0.5, colors="k", capstyle="butt")
+            lc_h.set_snap(True)
+            self.ax.add_collection(lc_h)
+
+            verticales = [
+                (xL, yB, yT),    # borde exterior izq.
+                (xR, yB, yT),    # borde exterior der.
+                (xiL, yiB, yiT), # borde interior izq.
+                (xiR, yiB, yiT), # borde interior der.
+            ]
+            verts = []
+            for y in y_lines:
+                for x, y0, y1 in verticales:
+                    if y0 <= y <= y1:
+                        verts.append((x, y))
+
+            x_edges = np.array([xL, xiL, xiR, xR]); x_edges.sort()
+            y_edges = y_lines; y_edges.sort()
+
+        # guardar vertices
+        V = np.unique(np.round(np.asarray(verts, float), 10), axis=0) if verts else np.empty((0, 2))
+
+        # centros
         xc = (x_edges[:-1] + x_edges[1:]) / 2
         yc = (y_edges[:-1] + y_edges[1:]) / 2
         Xc, Yc = np.meshgrid(xc, yc, indexing="xy")
-        self.ax.scatter(Xc, Yc, color="red", s=10, zorder=3, alpha=0.5)
-        self.centros = list(zip(Xc.ravel(), Yc.ravel()))
 
-        self._V = np.array(self.vertices, float) if self.vertices else np.empty((0, 2))
+        # centro de esquinas
+        corner_centers = np.array([
+            [(xL + xiL)/2, (yiT + yT)/2],  # sup-izq
+            [(xiR + xR)/2, (yiT + yT)/2],  # sup-der
+            [(xL + xiL)/2, (yB + yiB)/2],  # inf-izq
+            [(xiR + xR)/2, (yB + yiB)/2],  # inf-der
+        ])
+        Xf, Yf = Xc.ravel(), Yc.ravel()
+        mask = np.ones(Xf.shape, dtype=bool)
+        for cx, cy in corner_centers:
+            mask &= ~(np.isclose(Xf, cx, atol=1e-10) & np.isclose(Yf, cy, atol=1e-10))
+
+        # dibujar y guardar
+        self.ax.scatter(Xf[mask], Yf[mask], color="red", s=10, zorder=3, alpha=0.5)
+        self.centros = list(zip(Xf[mask], Yf[mask]))
+
+        # buffers para resaltado
+        self._V = V if V.size else np.empty((0, 2))
         self._C = np.array(self.centros, float) if self.centros else np.empty((0, 2))
 
     def _on_draw(self, event=None):
@@ -170,13 +237,3 @@ class dibujar_fibras(QWidget):
         if self.highlight_artist is not None and self.highlight_artist.get_visible():
             self.highlight_artist.set_visible(False)
             self.canvas.draw_idle()
-
-if __name__ == '__main__':
-    app = QApplication(sys.argv)
-    b, h, r = 90, 90, 3
-    dest = 1.2
-    n_x, n_y = 10, 10
-    main = dibujar_fibras(b, h, r, dest, n_x, n_y)
-    main.resize(900, 700)
-    main.show()
-    sys.exit(app.exec())

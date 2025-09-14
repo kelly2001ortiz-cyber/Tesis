@@ -31,6 +31,7 @@ class dibujar_seccion_columna(QWidget):
         self.canvas = FigureCanvas(self.figure)
         self.toolbar = CustomToolbar(self.canvas, self)
         self.toolbar.setMaximumHeight(28)
+        self.toolbar.coordinates = False
 
         self.figure.subplots_adjust(left=0, right=1, top=1, bottom=0)
         self.ax.set_position([0, 0, 1, 1])

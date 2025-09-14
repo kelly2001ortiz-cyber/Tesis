@@ -8,11 +8,12 @@ class class_mostrar_fibras:
     No cambia de página; solo toma parámetros según el texto del combobox ui.seccion_analisis.
     """
 
-    def __init__(self, ui, seccion_columna_data: dict, seccion_viga_data: dict, capas_fibras_data: dict):
+    def __init__(self, ui, seccion_columna_data: dict, seccion_viga_data: dict, capas_fibras_data: dict, direccion=None):
         self.ui = ui
         self.seccion_columna_data = seccion_columna_data or {}
         self.seccion_viga_data = seccion_viga_data or {}
         self.capas_fibras_data = capas_fibras_data or {}
+        self.direccion = direccion
         self._fib_widget = None  # mantener referencia
 
     def mostrar(self):
@@ -31,10 +32,12 @@ class class_mostrar_fibras:
         n_x = int(self.capas_fibras_data.get("fibras_x", 0))
         n_y = int(self.capas_fibras_data.get("fibras_y", 0))
 
-        self._montar_fibras(b, h, r, dest, n_x, n_y)
+        # Dirección: usa la pasada al ctor o, si no, la actual del UI
+        dir_src = self.direccion if self.direccion is not None else self.ui.direccion_analisis
+        self._montar_fibras(b, h, r, dest, n_x, n_y, dir_src)
 
-    def _montar_fibras(self, b, h, r, dest, n_x, n_y):
-        self._fib_widget = dibujar_fibras(b, h, r, dest, n_x, n_y)
+    def _montar_fibras(self, b, h, r, dest, n_x, n_y, direccion):
+        self._fib_widget = dibujar_fibras(b, h, r, dest, n_x, n_y, direccion)
         container = self.ui.cuadricula_seccion
         if isinstance(container, QLayout):
             self._clear_layout(container)

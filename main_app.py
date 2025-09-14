@@ -87,7 +87,8 @@ class VentanaPrincipal(QMainWindow):
         self.ui.seccion_analisis.currentTextChanged.connect(self.cambiar_pagina_analisis)
         self.ui.seccion_analisis.currentTextChanged.connect(self.invalidar_resultados_y_apagar_fibras)
         self.ui.direccion_analisis.currentTextChanged.connect(self.invalidar_resultados_y_apagar_fibras)
-        self.ui.actionCapas_de_Fibras_2.triggered.connect(self.mostrar_fibras)
+        #self.ui.actionCapas_de_Fibras_2.triggered.connect(self.mostrar_fibras)
+        self.ui.actionCapas_de_Fibras_2.toggled.connect(self.mostrar_fibras)
 
         # === Acciones de archivo ===
         # Asegúrate de tener estas acciones en tu .ui: actionNuevo, actionAbrir, actionGuardar, actionGuardar_como, actionSalir
@@ -409,15 +410,39 @@ class VentanaPrincipal(QMainWindow):
                 self.seccion_columna_data,
                 self.seccion_viga_data,
                 self.capas_fibras_data,
+                self.ui.direccion_analisis,
             )
             visor.mostrar()
             self._visor_fibras = visor  # mantener referencia
         else:
+            self._quitar_widget_fibras()
             texto = self.ui.seccion_analisis.currentText()
             if texto.lower() == "columna":
                 self.mostrar_columna()
             elif texto.lower() == "viga":
                 self.mostrar_viga()
+
+    def _quitar_widget_fibras(self):
+        """Remueve el widget de fibras del contenedor y libera memoria."""
+        try:
+            if hasattr(self, "_visor_fibras"):
+                w = getattr(self._visor_fibras, "_fib_widget", None)
+                if w is not None:
+                    parent = w.parent()
+                    w.setParent(None)
+                    w.deleteLater()
+                # limpia el layout por si quedaron ítems
+                cont = getattr(self.ui, "cuadricula_seccion", None)
+                if cont is not None:
+                    lay = cont if hasattr(cont, "addWidget") and hasattr(cont, "takeAt") else getattr(cont, "layout", lambda: None)()
+                    if lay is not None:
+                        while lay.count():
+                            item = lay.takeAt(0)
+                            if item and item.widget():
+                                item.widget().setParent(None)
+                del self._visor_fibras
+        except Exception:
+            pass
 
     def conectar_lineedits_proyecto(self):
         self.ui.descripcion_proyecto.textChanged.connect(
