@@ -1,6 +1,7 @@
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel
 from ui_mostrar_MC import Ui_mostrar_MC
 from class_mostrar_tabla import VentanaMostrarTabla
+from vista_dinamica_seccion_columna import SeccionColumnaGrafico
 
 # Compatibilidad PySide6 (qtagg) y fallback a qt5agg si hiciera falta
 try:
@@ -26,7 +27,7 @@ class CustomToolbar(NavigationToolbar2QT):
 
 class VentanaMostrarMC(QDialog):
 
-    def __init__(self, mc_series: dict, parent=None):
+    def __init__(self, seccion_columna_data: dict, mc_series: dict, parent=None):
         super().__init__(parent)
         self.ui = Ui_mostrar_MC()
         self.ui.setupUi(self)
@@ -34,6 +35,16 @@ class VentanaMostrarMC(QDialog):
         # Datos
         self._series = mc_series or {}
 
+        # --------- Dibuja la sección ----------
+        SeccionColumnaGrafico(
+            self.ui.cuadricula_seccionMC,
+            (seccion_columna_data or {}).copy(),
+            ui=None,
+            mostrar_toolbar=False,
+            mostrar_coords=False,
+            show_highlight=False,
+        )
+        
         # Figura y Canvas
         self.figure = plt.figure()
         self.canvas = FigureCanvas(self.figure)

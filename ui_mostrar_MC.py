@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'mostrar_MC - copiasgtZVc.ui'
+## Form generated from reading UI file 'mostrar_MC - copiaZOkoUB.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.4.3
 ##
@@ -46,6 +46,14 @@ class Ui_mostrar_MC(object):
         self.btn_mostrar_tablaMC = QPushButton(mostrar_MC)
         self.btn_mostrar_tablaMC.setObjectName(u"btn_mostrar_tablaMC")
         self.btn_mostrar_tablaMC.setGeometry(QRect(10, 110, 91, 24))
+        self.groupBox_17 = QGroupBox(mostrar_MC)
+        self.groupBox_17.setObjectName(u"groupBox_17")
+        self.groupBox_17.setGeometry(QRect(10, 150, 281, 281))
+        self.groupBox_17.setMinimumSize(QSize(281, 281))
+        self.groupBox_17.setMaximumSize(QSize(281, 281))
+        self.cuadricula_seccionMC = QWidget(self.groupBox_17)
+        self.cuadricula_seccionMC.setObjectName(u"cuadricula_seccionMC")
+        self.cuadricula_seccionMC.setGeometry(QRect(10, 30, 261, 261))
 
         self.retranslateUi(mostrar_MC)
 
@@ -58,5 +66,6 @@ class Ui_mostrar_MC(object):
         self.checkBox_2.setText(QCoreApplication.translate("mostrar_MC", u"Hognestad", None))
         self.checkBox_3.setText(QCoreApplication.translate("mostrar_MC", u"Mander", None))
         self.btn_mostrar_tablaMC.setText(QCoreApplication.translate("mostrar_MC", u"Mostrar Tabla", None))
+        self.groupBox_17.setTitle(QCoreApplication.translate("mostrar_MC", u"Secci\u00f3n", None))
     # retranslateUi
 

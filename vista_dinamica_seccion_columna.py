@@ -17,7 +17,8 @@ class SeccionColumnaGrafico:
       - mostrar_toolbar: bool -> mostrar/ocultar toolbar de Matplotlib
       - mostrar_coords: bool -> mostrar/ocultar coordenadas del puntero
     """
-    def __init__(self, widget_container, datos, ui=None, mostrar_toolbar=True, mostrar_coords=True):
+    def __init__(self, widget_container, datos, ui=None, mostrar_toolbar=True, mostrar_coords=True,
+                 show_highlight=True):
         self.container = widget_container
         self.datos = datos
         self.ui = ui  # Acceso a los QLineEdit si se pasa
@@ -26,6 +27,7 @@ class SeccionColumnaGrafico:
         self.mostrar_toolbar = mostrar_toolbar
         self.mostrar_coords = mostrar_coords
 
+        self.show_highlight = bool(show_highlight)
         self.dibujar_columna()
 
         if self.ui is not None:
@@ -143,7 +145,8 @@ class SeccionColumnaGrafico:
             n_x=n_x,
             n_y=n_y,
             d_corner=d_corner / 10, # mm -> cm
-            d_edge=d_long / 10   # mm -> cm
+            d_edge=d_long / 10,      # mm -> cm
+            show_highlight=self.show_highlight,
         )
 
         # Aplicar visibilidad (ocultar toolbar/coords si corresponde SOLO en este uso)

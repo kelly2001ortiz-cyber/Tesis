@@ -52,7 +52,8 @@ class VentanaMostrarDI(QDialog):
             (seccion_columna_data or {}).copy(),
             ui=None,
             mostrar_toolbar=False,
-            mostrar_coords=False
+            mostrar_coords=False,
+            show_highlight=False,
         )
 
         # --- Hacer que la sección se vea grande y llene el frame ---

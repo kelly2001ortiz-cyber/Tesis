@@ -24,7 +24,7 @@ class CustomToolbar(NavigationToolbar2QT):
     ]
 
 class dibujar_seccion_columna(QWidget):
-    def __init__(self, b, h, r, dest, n_x, n_y, d_corner, d_edge, *args, **kwargs):
+    def __init__(self, b, h, r, dest, n_x, n_y, d_corner, d_edge, *args, show_highlight=True, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.figure, self.ax = plt.subplots()
@@ -51,6 +51,7 @@ class dibujar_seccion_columna(QWidget):
         self.rec = r + 0.5 * dest
         self.n_x, self.n_y = n_x, n_y
 
+        self.show_highlight = bool(show_highlight)
         self.highlight_ms = 7.5
         self.pix_tol = 10.0
         self.view_margin = 0.4
@@ -140,8 +141,15 @@ class dibujar_seccion_columna(QWidget):
         x_start_edge, x_end_edge = x0 + self.rec + self.dest/2 + d_edge/2, x0 + self.b - self.rec - self.dest/2 - d_edge/2
         y_start_edge, y_end_edge = y0 + self.rec + self.dest/2 + d_edge/2, y0 + self.h - self.rec - self.dest/2 - d_edge/2
 
-        xs_edge = np.linspace(x_start_edge, x_end_edge, n_x)[1:-1]
-        ys_edge = np.linspace(y_start_edge, y_end_edge, n_y)[1:-1]
+        # centros barras esquineras
+        x_start_corner, x_end_corner = x0 + self.rec + self.dest/2 + self.d_corner/2, x0 + self.b - self.rec - self.dest/2 - self.d_corner/2
+        y_start_corner, y_end_corner = y0 + self.rec + self.dest/2 + self.d_corner/2, y0 + self.h - self.rec - self.dest/2 - self.d_corner/2
+
+        xs_corner = np.linspace(x_start_corner, x_end_corner, 2)
+        ys_corner = np.linspace(y_start_corner, y_end_corner, 2)
+
+        xs_edge = np.linspace(x_start_corner, x_end_corner, n_x)[1:-1]
+        ys_edge = np.linspace(y_start_corner, y_end_corner, n_y)[1:-1]
 
         circles, centers = [], []
 
@@ -158,11 +166,6 @@ class dibujar_seccion_columna(QWidget):
             circles.append(patches.Circle((x_end_edge,   y), d_edge/2))
             centers.append((x_start_edge, y))
             centers.append((x_end_edge, y))
-
-        # centros barras esquineras
-        x_start_corner, x_end_corner = x0 + self.rec + self.dest/2 + self.d_corner/2, x0 + self.b - self.rec - self.dest/2 - self.d_corner/2
-        y_start_corner, y_end_corner = y0 + self.rec + self.dest/2 + self.d_corner/2, y0 + self.h - self.rec - self.dest/2 - self.d_corner/2
-        xs_corner = np.linspace(x_start_corner, x_end_corner, 2)
 
         # esquinas
         for x in xs_corner:
@@ -196,13 +199,16 @@ class dibujar_seccion_columna(QWidget):
         if p is None:
             j = nearest(self._Cpx, self.pix_tol)
             p = tuple(self._C[j]) if j is not None else None
-        if p:
-            self.add_highlight(p); self.label.setText(f"X = {p[0]:.2f}    Y = {p[1]:.2f}")
+        if p and self.show_highlight:
+            self.add_highlight(p)
+            self.label.setText(f"X = {p[0]:.2f}    Y = {p[1]:.2f}")
         else:
             self.remove_highlight()
             self.label.setText(f"X = {event.xdata:.2f}    Y = {event.ydata:.2f}" if (event.xdata is not None and event.ydata is not None) else " ")
 
     def add_highlight(self, p):
+        if not self.show_highlight:
+            return
         if self.highlight_artist is None:
             (a,) = self.ax.plot(p[0], p[1], marker='o', ms=self.highlight_ms, mfc='red', mec='red', mew=0.5, alpha=0.8, zorder=21)
             self.highlight_artist = a
