@@ -54,7 +54,7 @@ class dibujar_seccion_columna(QWidget):
         self.show_highlight = bool(show_highlight)
         self.highlight_ms = 7.5
         self.pix_tol = 10.0
-        self.view_margin = 0.4
+        self.view_margin = 0.05
 
         self._cover_patch = None
         self._core_rect = None

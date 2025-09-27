@@ -3,10 +3,16 @@ from seccion_viga_dibujar import dibujar_seccion_viga
 from validation_utils2 import parsear_numero
 
 class SeccionVigaGrafico:
-    def __init__(self, widget_container, datos, ui=None):
+    def __init__(self, widget_container, datos, ui=None, mostrar_toolbar=True, mostrar_coords=True, show_highlight=True):
         self.container = widget_container
         self.datos = datos
         self.ui = ui
+        
+        # Flags de visualización
+        self.mostrar_toolbar = mostrar_toolbar
+        self.mostrar_coords = mostrar_coords
+        self.show_highlight = bool(show_highlight)
+        
         self.dibujar_viga()
         if self.ui is not None:
             self.conectar_lineedits()
@@ -81,6 +87,7 @@ class SeccionVigaGrafico:
             n_sup=n_sup,
             n_inf=n_inf,
             d_sup=d_sup/10,
-            d_inf=d_inf/10
+            d_inf=d_inf/10,
+            show_highlight=self.show_highlight,
         )
         layout.addWidget(grafico)

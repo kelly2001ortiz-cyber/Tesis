@@ -587,9 +587,9 @@ class VentanaPrincipal(QMainWindow):
             return
         texto = self.ui.seccion_analisis.currentText()
         if texto.lower() == "columna":
-            dlg = VentanaMostrarMC(self.seccion_columna_data, self.mc_series, parent=self)
+            dlg = VentanaMostrarMC(self.seccion_columna_data, self.seccion_viga_data, self.mc_series, tipo_seccion=texto.lower(), parent=self)
         elif texto.lower() == "viga":
-            dlg = VentanaMostrarMC(self.seccion_columna_data, self.mc_series, parent=self)
+            dlg = VentanaMostrarMC(self.seccion_columna_data, self.seccion_viga_data, self.mc_series, tipo_seccion=texto.lower(), parent=self)
         dlg.exec()
 
     # ---------------- Vistas secciones / propiedades ----------------
@@ -700,7 +700,7 @@ class VentanaPrincipal(QMainWindow):
             self.ui, self.seccion_viga_data, self._wrap_dirty(self.actualizar_seccion_viga_data)
         )
         self.ui.disenar_viga_nombre.setText(str(self.proyecto_data.get("descripcion_seccion", "")))
-        SeccionVigaGrafico(self.ui.cuadricula_seccion, self.seccion_viga_data, ui=self.ui)
+        SeccionVigaGrafico(self.ui.cuadricula_seccion, self.seccion_viga_data, ui=self.ui, show_highlight=True)
         self.propiedades_viga()
         # <<< conecta todos los lineedit de pg_viga
         self._wire_dirty_lineedits(self.ui.pg_viga)

@@ -22,7 +22,7 @@ class CustomToolbar(NavigationToolbar2QT):
     ]
     
 class dibujar_seccion_viga(QWidget):
-    def __init__(self, b, h, r, dest, n_sup, n_inf, d_sup, d_inf, *args, **kwargs):
+    def __init__(self, b, h, r, dest, n_sup, n_inf, d_sup, d_inf, *args, show_highlight=True, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.figure, self.ax = plt.subplots()
@@ -55,6 +55,7 @@ class dibujar_seccion_viga(QWidget):
         self.d_sup = d_sup
         self.d_inf = d_inf
 
+        self.show_highlight = bool(show_highlight)
         self.highlight_ms = 7.5
         self.pix_tol = 10.0
         self.view_margin = 0.05
@@ -185,13 +186,16 @@ class dibujar_seccion_viga(QWidget):
         if p is None:
             j = nearest(self._Cpx, self.pix_tol)
             p = tuple(self._C[j]) if j is not None else None
-        if p:
-            self.add_highlight(p); self.label.setText(f"X = {p[0]:.2f}    Y = {p[1]:.2f}")
+        if p and self.show_highlight:
+            self.add_highlight(p)
+            self.label.setText(f"X = {p[0]:.2f}    Y = {p[1]:.2f}")
         else:
             self.remove_highlight()
             self.label.setText(f"X = {event.xdata:.2f}    Y = {event.ydata:.2f}" if (event.xdata is not None and event.ydata is not None) else " ")
 
     def add_highlight(self, p):
+        if not self.show_highlight:
+            return
         if self.highlight_artist is None:
             (a,) = self.ax.plot(p[0], p[1], marker='o', ms=self.highlight_ms, mfc='red', mec='red', mew=0.5, alpha=0.8, zorder=21)
             self.highlight_artist = a
