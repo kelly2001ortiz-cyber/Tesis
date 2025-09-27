@@ -1,20 +1,22 @@
 import numpy as np
 
 # Coordenadas de las varillas
-def barras_area(h, r, dest, n_x, n_y, dlong):
-    rec = r + dest
-    y0 = rec + dlong/2
-    y1 = h - rec - dlong/2
-    area = np.pi * dlong**2 / 4.0
-    Ys, areas = [], []
-    if n_x >= 2:  # filas inferior y superior
-        Ys += [y0, y1]
-        areas += [area*n_x, area*n_x]
-    if n_y >= 3:  # filas intermedias
-        ys_in = np.linspace(y0, y1, n_y)[1:-1]
-        Ys += ys_in.tolist()
-        areas += [area*2]*len(ys_in)
-    As = np.column_stack([areas, Ys]) if Ys else np.empty((0,2))
+def barras_area(h, r, dest, n_x, n_y, d_corner, d_edge):
+    As_edge = 0.25 * np.pi * d_edge**2
+    As_corner = 0.25 * np.pi * d_corner**2
+    y_inf_edge = r + dest + d_edge/2
+    y_sup_edge = h - y_inf_edge
+    y_inf_corner = r + dest + d_corner/2
+    y_sup_corner = h - y_inf_corner
+    y_edge = np.linspace(y_inf_corner, y_sup_corner, n_y)[1:-1]
+    y = np.concatenate(([y_inf_corner],[y_inf_edge], y_edge, [y_sup_edge], [y_sup_corner]))
+    nbarras = np.full(n_y + 2, 2, dtype=int)
+    nbarras[1]  = (n_x - 2)
+    nbarras[n_y] = (n_x - 2)
+    areas = nbarras * As_edge
+    areas[0] = 2 * As_corner
+    areas[-1] = 2 * As_corner
+    As = np.column_stack([areas, y])
     return As
 
 # Materiales
@@ -97,8 +99,9 @@ def ejecutar_di_columnaX (datos_hormigon, datos_acero, datos_seccion):
     m = int(100)
     de = float(datos_seccion.get("disenar_columna_diametro_transversal"))/10     # Esfuerzo de fluencia
     dlong = float(datos_seccion.get("disenar_columna_diametro_longitudinal_2"))/10
+    d_corner = int(float(datos_seccion.get("disenar_columna_diametro_longitudinal_esq")))/10
 
-    As = barras_area(h, rec, de, Nb1, Nb2, dlong)
+    As = barras_area(h, rec, de, Nb1, Nb2, d_corner, dlong)
     P, M, c = DI(b, h, rec, As, fc0, ecu, fy, Es, ey, m)
     phi_P, phi_M = phi(As, ecu, c, ey, P, M)
     return c, phi_P, phi_M, P, M

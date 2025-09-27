@@ -1,117 +1,160 @@
 import numpy as np
+from scipy.integrate import simpson
+from scipy.optimize import brentq
 
 # --- Modelo constitutivo del hormigon confinado de Mander ---
 def mander_confinado(datos_hormigon, datos_acero, datos_seccion):
 
-    """ Nomograma Mander """
-    def fccfco (n1, n2):
-        tabla = {
-            'x1':  [1.0, 1.040296496, 1.080592992, 1.113881402, 1.140161725, 1.162938005, 1.182210243, 1.20148248, 1.219002695, 1.233018868, 1.245283019, 1.255795148, 1.264555256, 1.276819407, 1.282075472, 1.29083558],
-            'x2':  [1.0, 1.124393531, 1.178706199, 1.215498652, 1.245283019, 1.268059299, 1.289083558, 1.311859838, 1.332884097, 1.348652291, 1.362668464, 1.374932615, 1.388948787, 1.401212938, 1.411725067, 1.420485175],
-            'x3':  [1.0, 1.124393531, 1.243530997, 1.294339623, 1.329380054, 1.35916442, 1.388948787, 1.411725067, 1.436253369, 1.453773585, 1.467789757, 1.485309973, 1.502830189, 1.516846361, 1.527358491, 1.539622642],
-            'x4':  [1.0, 1.124393531, 1.243530997, 1.353908356, 1.401212938, 1.438005391, 1.466037736, 1.494070081, 1.518598383, 1.539622642, 1.557142857, 1.576415094, 1.59393531, 1.609703504, 1.623719677, 1.634231806],
-            'x5':  [1.0, 1.124393531, 1.243530997, 1.353908356, 1.455525606, 1.501078167, 1.53787062, 1.569407008, 1.599191375, 1.623719677, 1.644743935, 1.662264151, 1.679784367, 1.699056604, 1.711320755, 1.720080863],
-            'x6':  [1.0, 1.124393531, 1.243530997, 1.353908356, 1.455525606, 1.557142857, 1.600943396, 1.635983827, 1.667520216, 1.695552561, 1.716576819, 1.7393531, 1.758625337, 1.777897574, 1.791913747, 1.805929919],
-            'x7':  [1.0, 1.124393531, 1.243530997, 1.353908356, 1.455525606, 1.557142857, 1.651752022, 1.690296496, 1.727088949, 1.756873315, 1.78490566, 1.807681941, 1.830458221, 1.849730458, 1.865498652, 1.877762803],
-            'x8':  [1.0, 1.124393531, 1.243530997, 1.353908356, 1.455525606, 1.557142857, 1.651752022, 1.741105121, 1.783153639, 1.812938005, 1.835714286, 1.858490566, 1.881266846, 1.904043127, 1.921563342, 1.939083558],   
-            'x9':  [1.0, 1.124393531, 1.243530997, 1.353908356, 1.455525606, 1.557142857, 1.651752022, 1.741105121, 1.823450135, 1.863746631, 1.893530997, 1.919811321, 1.944339623, 1.967115903, 1.984636119, 2.003908356],
-            'x10': [1.0, 1.124393531, 1.243530997, 1.353908356, 1.455525606, 1.557142857, 1.651752022, 1.741105121, 1.823450135, 1.904043127, 1.933827493, 1.958355795, 1.984636119, 2.010916442, 2.033692722, 2.05296496],
-            'x11': [1.0, 1.124393531, 1.243530997, 1.353908356, 1.455525606, 1.557142857, 1.651752022, 1.741105121, 1.823450135, 1.904043127, 1.970619946, 2.002156334, 2.030188679, 2.058221024, 2.080997305, 2.105525606],
-            'x12': [1.0, 1.124393531, 1.243530997, 1.353908356, 1.455525606, 1.557142857, 1.651752022, 1.741105121, 1.823450135, 1.904043127, 1.970619946, 2.040700809, 2.070485175, 2.103773585, 2.128301887, 2.15458221],
-            'x13': [1.0, 1.124393531, 1.243530997, 1.353908356, 1.455525606, 1.557142857, 1.651752022, 1.741105121, 1.823450135, 1.904043127, 1.970619946, 2.040700809, 2.105525606, 2.137061995, 2.163342318, 2.189622642],
-            'x14': [1.0, 1.124393531, 1.243530997, 1.353908356, 1.455525606, 1.557142857, 1.651752022, 1.741105121, 1.823450135, 1.904043127, 1.970619946, 2.040700809, 2.105525606, 2.175606469, 2.201838275, 2.224663073],
-            'x15': [1.0, 1.124393531, 1.243530997, 1.353908356, 1.455525606, 1.557142857, 1.651752022, 1.741105121, 1.823450135, 1.904043127, 1.970619946, 2.040700809, 2.105525606, 2.175606469, 2.235175202, 2.257951482],
-            'x16': [1.0, 1.124393531, 1.243530997, 1.353908356, 1.455525606, 1.557142857, 1.651752022, 1.741105121, 1.823450135, 1.904043127, 1.970619946, 2.040700809, 2.105525606, 2.175606469, 2.235175202, 2.3],
-            'y':   [0.0, 0.017828571, 0.038057143, 0.057257143, 0.077485714, 0.097714286, 0.117600000, 0.138171429, 0.157714286, 0.177257143, 0.197142857, 0.217028571, 0.23760000, 0.258514286, 0.278400000, 0.3]}
-        n2interp = np.array([1.29083558, 1.420485175, 1.539622642, 1.634231806, 1.720080863, 1.805929919, 1.877762803, 1.939083558, 2.003908356, 2.05296496, 2.105525606, 2.1545822, 2.189622642, 2.224663073, 2.257951482, 2.3])
-        log_n2_final = np.array([0,	0.030217856132183404, 0.043907390934601435, 0.05914069957428035, 0.07669599849765889, 0.1, 0.118697957, 0.136568755, 0.157742049, 0.175922121,	0.2, 0.219665655, 0.237465214,	0.256707074, 0.276431578, 0.3])
-        # Verificar rango
-        if n2 < log_n2_final[0] or n2 > log_n2_final[-1]:
-            return "El valor está fuera del rango permitido"
-        
-        # Interpolacion
-        n2_equiv = np.interp(n2, log_n2_final, n2interp)
-        y_vals = tabla['y']
-        x_interpolada = []
-        
-        for i in range(len(y_vals)):
-            x_vals = [tabla[f'x{j+1}'][i] for j in range(16)]
-            x_interp = np.interp(n2_equiv, n2interp, x_vals)
-            x_interpolada.append(x_interp)
-        
-        # INTERSECCION
-        for i in range(len(y_vals) - 1):
-            if (y_vals[i] - n1) * (y_vals[i+1] - n1) <= 0:
-                x0, x1_ = x_interpolada[i], x_interpolada[i+1]
-                y0, y1_ = y_vals[i], y_vals[i+1]
-                t = (n1 - y0) / (y1_ - y0)
-                n3= x0 + t * (x1_ - x0)
-                return n3
-        return "No hay interseccion"
+    def mander_cc(ecu):
+        # Obtener parametros de sección, materiales y armado
+        fc0 = float(datos_hormigon.get("esfuerzo_fc"))
+        Ec = float(datos_hormigon.get("modulo_Ec"))
+        ec0 = float(datos_hormigon.get("def_max_sin_confinar"))
+        esu = float(datos_hormigon.get("def_ultima_confinada"))
+        fy = float(datos_acero.get("esfuerzo_fy"))
+        b = float(datos_seccion.get("disenar_columna_base"))
+        h = float(datos_seccion.get("disenar_columna_altura"))
+        rec = float(datos_seccion.get("disenar_columna_recubrimiento"))
+        Sc = float(datos_seccion.get("disenar_columna_espaciamiento"))
+        de = float(datos_seccion.get("disenar_columna_diametro_transversal"))/10
+        dbe = float(datos_seccion.get("disenar_columna_diametro_longitudinal_2"))/10
+        dbi = float(datos_seccion.get("disenar_columna_diametro_longitudinal_2"))/10
+        Nb1 = float(datos_seccion.get("disenar_columna_varillasX_2"))
+        Nb2 = float(datos_seccion.get("disenar_columna_varillasY_2"))
+        Nb = (Nb1-2)*2 + Nb2*2
+        NLx = float(datos_seccion.get("disenar_columna_ramalesX"))
+        NLy = float(datos_seccion.get("disenar_columna_ramalesY"))
 
-    # Obtener parametros de sección, materiales y armado
-    fc0 = float(datos_hormigon.get("esfuerzo_fc"))              # Esfuerzo máximo (kg/cm² o MPa)
-    Ec = float(datos_hormigon.get("modulo_Ec"))                 # Módulo de elasticidad (kg/cm² o MPa)
-    ec0 = float(datos_hormigon.get("def_max_sin_confinar"))     # Deformación máxima (pico)
-    esu = float(datos_hormigon.get("def_ultima_confinada"))     # Deformación última
-    fy = float(datos_acero.get("esfuerzo_fy"))     # Esfuerzo de fluencia
-    b = float(datos_seccion.get("disenar_columna_base"))     # Esfuerzo de fluencia
-    h = float(datos_seccion.get("disenar_columna_altura"))     # Esfuerzo de fluencia
-    rec = float(datos_seccion.get("disenar_columna_recubrimiento"))     # Esfuerzo de fluencia
-    Sc = float(datos_seccion.get("disenar_columna_espaciamiento"))     # Esfuerzo de fluencia
-    de = float(datos_seccion.get("disenar_columna_diametro_transversal"))/10     # Esfuerzo de fluencia
-    dbe = float(datos_seccion.get("disenar_columna_diametro_longitudinal_2"))/10  # Diametro de refuerzo esquinas
-    dbi = float(datos_seccion.get("disenar_columna_diametro_longitudinal_2"))/10  # Diametro de refuerzo interior
-    Nb1 = float(datos_seccion.get("disenar_columna_varillasX_2"))  # N° varillas de refuerzo
-    Nb2 = float(datos_seccion.get("disenar_columna_varillasY_2"))  # N° varillas de refuerzo
-    Nb = (Nb1-2)*2 + Nb2*2             # N° varillas de refuerzo
-    NLx = float(datos_seccion.get("disenar_columna_ramalesX"))
-    NLy = float(datos_seccion.get("disenar_columna_ramalesY"))
+        # calculo de f'cc - Mander, J. B., Priestley, M. J. N., and Park, R. (1984) "Seismic design of bridge piers"
+        def fccfco(flx, fly, fc0):
+            sigma1, sigma2, sigma3 = -min(flx, fly), -max(flx, fly), -fc0
+            tau_oct_i, tau_oct_j = 1, 2
+            tol = 1e-6
+            for i in range(1000):
+                # esfuerzos octaedricos
+                sigma_oct = (sigma1 + sigma2 + sigma3) / 3
+                tau_oct_i = (((sigma1 - sigma2) ** 2 + (sigma2 - sigma3) ** 2 + (sigma3 - sigma1) ** 2) ** 0.5 ) / 3
+                cos_theta = (sigma1 - sigma_oct) / (2 ** 0.5 * tau_oct_i)
+                # coeficiente de esfuerzo normal octaedrico
+                sigmap_oct = sigma_oct / fc0
+                # ecuaciones de los meridianos
+                T = 0.069232 - 0.661091 * sigmap_oct - 0.049350 * sigmap_oct ** 2
+                C = 0.122965 - 1.150502 * sigmap_oct - 0.315545 * sigmap_oct ** 2
+                # coeficiente de esfuerzo cortante octaedrico
+                D = 4 * (C ** 2 - T ** 2) * cos_theta ** 2
+                tau_oct_j = fc0 * C * (D / (2 * cos_theta) + (2 * T - C) * (D + 5 * T ** 2 - 4 * T * C) ** 0.5) / (D + (2 * T - C) ** 2)            
+                sigma3_nuevo = (sigma1 + sigma2) / 2 - (4.5 * tau_oct_j ** 2 - 0.75 * (sigma1 - sigma2) ** 2) ** 0.5
+                if abs(tau_oct_i - tau_oct_j) < tol and abs(sigma3 - sigma3_nuevo) < tol:
+                    sigma3 = sigma3_nuevo
+                    break
+                sigma3 = sigma3_nuevo
+            return -sigma3
+        # dimensiones del nucleo
+        dc = h - 2 * rec - de              # Altura confinada
+        bc = b - 2 * rec - de              # Base confinada
+        Ss = Sc - de                       # Longitud libre entre estribos
+        # area inefectiva (zona no confinada)
+        Wx = (bc - de - 2 * dbe - (NLx - 2) * dbi) / (NLx - 1)
+        Wy = (dc - de - 2 * dbe - (NLy - 2) * dbi) / (NLy - 1)
+        Ainef = (2 * (NLx - 1) * Wx ** 2 / 6) + (2 * (NLy - 1) * Wy ** 2 / 6)
+        # Area efectiva confinada
+        Ae = (bc * dc - Ainef) * (1 - Ss / (2 * bc)) * (1 - Ss / (2 * dc))
+        # cuantia del acero longitudinal
+        Ast = np.pi * (dbe ** 2 + (Nb - 4) * dbi ** 2 / 4)
+        Ac = bc * dc
+        Acc = Ac - Ast
+        pcc = Ast / Acc
+        # coeficiente de confinamiento efectivo
+        ke = Ae / Acc
+        # presion lateral de confinamiento
+        Ash = np.pi * de ** 2 / 4
+        px = (NLx * Ash * bc) / (Sc * bc * dc)
+        py = (NLy * Ash * dc) / (Sc * bc * dc)
+        flx = ke * px * fy
+        fly = ke * py * fy
+        # incremento de resistencia por confinamiento
+        fcc = fccfco(flx, fly, fc0)
+        ecc = ec0 * (1 + 5 * (fcc / fc0 - 1))
+        # modulo secante y parámetro r
+        Esec = fcc / ecc
+        r = Ec / (Ec - Esec)
+        # cuantia volumetrica de estribos
+        psh = (NLx * Ash * bc + NLy * Ash * dc) / (Acc * Sc)
+        # diagrama esfuerzo-deformacion
+        ec = np.linspace(0, ecu, 100)
+        fc = np.zeros_like(ec)
+        x = ec / ecc
+        fc = fcc * (x * r) / (r - 1 + x ** r)
+        return ec, fc, psh, Acc
 
-    """ Dimensiones del nucleo """
-    dc = h - 2*rec - de              # Altura confinada
-    bc = b - 2*rec - de              # Base confinada
-    Ss = Sc - de                     # Longitud libre del estribo
-    
-    # --- Area inefectiva (zona no confinada) ---
-    Wx = (bc - de - 2*dbe - (NLx - 2) * dbi) / (NLx - 1)
-    Wy = (dc - de - 2*dbe - (NLy - 2) * dbi) / (NLy - 1)
-    Ainef = 2 * (NLx - 1) * Wx ** 2 / 6 + 2 * (NLy - 1) * Wy ** 2 / 6
+    def mander_uc():
+        # Obtener parametros de materiales
+        fc0 = float(datos_hormigon.get("esfuerzo_fc"))
+        Ec = float(datos_hormigon.get("modulo_Ec"))
+        ec0 = float(datos_hormigon.get("def_max_sin_confinar"))
+        esp = float(datos_hormigon.get("def_ultima_sin_confinar")) # Agregar
 
-    # --- Area confinada efectiva ---
-    Ae = (bc * dc - Ainef) * (1 - Ss / (2 * bc)) * (1 - Ss / (2 * dc))
-    
-    # --- Cuantia de acero longitudinal (para el nucleo) ---
-    pcc = np.pi * (dbe ** 2 + (Nb - 4) * dbi ** 2) / (4 * (dc - de) * (bc - de))
-    Acc = bc * dc * (1 - pcc)
-    ke = Ae / Acc                     # Coeficiente de confinamiento efectivo
-    
-    # --- Presiones laterales de confinamiento ---
-    psx = (NLx * np.pi * de ** 2) / (4 * dc * Sc)
-    psy = (NLy * np.pi * de ** 2) / (4 * bc * Sc)
-    f1x = ke * psx * fy
-    f1y = ke * psy * fy
-    
-    # --- Incremento de resistencia por confinamiento -
-    f1xfc0 = f1x / fc0
-    f1yfc0 = f1y / fc0
-    fccfc0 = fccfco(f1xfc0, f1yfc0)
-    fcc = fccfc0 * fc0
-    ecc = (5 * (fccfc0 - 1) + 1) * ec0
-    
-    # --- Modulo secante y parámetro r ---
-    Esec = fcc / ecc         # Modulo elastico secante
-    r = Ec / (Ec - Esec)     # Parámetro r de Mander
-    
-    # --- Deformacion ultima ecu (modelo Mander) ---
-    As_est = np.pi * de**2 / 4
-    ps = (As_est * (NLx * dc + NLy * bc)) / (dc * bc * Sc)
-    ecu = 0.004 + 1.4 * ps * fy * esu / fcc
+        ec00 = 2 * ec0
 
-    # --- Diagrama esfuerzo-deformacion ---
-    ec = np.linspace(0, ecu, 100)
-    fc = np.zeros_like(ec)
-    x = ec / ecc
-    fc = fcc * (x * r) / (r - 1 + x ** r)
-    
-    return ec, fc
+        ec = np.zeros(100)
+        ec[-1] = esp
+        ec[:99] = np.linspace(0, ec00, 99)
+        fc = np.zeros_like(ec)
+        # Módulo secante y parámetro r
+        Esec = fc0 / ec0
+        r = Ec / (Ec - Esec)
+        # Diagrama esfuerzo-deformacion
+        z1 = (ec > 0) & (ec <= ec00)
+        x = ec[z1] / ec0
+        fc[z1] = fc0 * (x * r) / (r - 1 + x ** r)
+        fc[-1] = 0
+        return ec, fc
+
+    def park_sh():
+        # Obtener parametros de materiales
+        fy = float(datos_acero.get("esfuerzo_fy"))
+        fsu = float(datos_acero.get("esfuerzo_ultimo_acero"))
+        Es = float(datos_acero.get("modulo_Es"))
+        ey = float(datos_acero.get("def_fluencia_acero"))
+        esh = float(datos_acero.get("def_inicio_endurecimiento"))
+        esu = float(datos_acero.get("def_ultima_acero"))  # Cambiar por el del acero
+
+        es = np.linspace(0, esu, 100)
+        fs = np.zeros_like(es)
+        # zona elestica
+        z1 = (es <= ey)
+        fs[z1] = Es * es[z1]
+        # zona perfectamente plastica
+        z2 = (es > ey) & (es <= esh)
+        fs[z2] = fy
+        # zona de endurecimiento por deformacion
+        z3 = (es > esh) & (es <= esu)
+        r = esu - esh
+        m = ((fsu / fy) * (30 * r + 1) ** 2 - 60 * r - 1) / (15 * r ** 2)  
+        delta_e = es[z3] - esh
+        parte1 = (m * delta_e + 2) / (60 * delta_e + 2)
+        parte2 = delta_e * (60 - m) / (2 * (30 * r + 1) ** 2)
+        fs[z3] = np.sign(es[z3]) * fy * (parte1 + parte2)
+        return es, fs
+
+    ### -------------------------------------------------------------------------------------- ###
+    def g(ecu):
+        # hormigon no confinado
+        ec_uc, fc_uc = mander_uc()
+        A_uc = simpson(fc_uc, ec_uc)
+        # acero transversal
+        es_sh, fs_sh = park_sh()
+        A_sh = simpson(fs_sh, es_sh)
+        # hormigon confinado hasta ecu
+        ec_cc, fc_cc, psh, Acc = mander_cc(ecu)
+        A_cc = simpson(fc_cc, ec_cc)
+        # balance de energia: Ucc - Uco - Ush
+        Ush = psh * Acc * A_sh
+        Uco = Acc * A_uc
+        Ucc = Acc * A_cc
+        return Ucc - Uco - Ush
+
+    ecu = brentq(g, 0.002, 0.100)
+    ec_cc, fc_cc, _, _ = mander_cc(ecu)
+
+    return ec_cc, fc_cc

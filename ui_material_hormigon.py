@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'material_hormigonUUHSqu.ui'
+## Form generated from reading UI file 'material_hormigonHpLEdS.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.4.3
 ##
@@ -101,9 +101,9 @@ class Ui_material_hormigon(object):
         self.modulo_Ec.setText(QCoreApplication.translate("material_hormigon", u"218819.788", None))
         self.groupBox_2.setTitle(QCoreApplication.translate("material_hormigon", u"Datos para Curva Esfuerzo Deformaci\u00f3n", None))
         self.label_13.setText(QCoreApplication.translate("material_hormigon", u"Def. a compresi\u00f3n sin confinar, \u03b5co ", None))
-        self.label_15.setText(QCoreApplication.translate("material_hormigon", u"Def. \u00faltima no confinada", None))
+        self.label_15.setText(QCoreApplication.translate("material_hormigon", u"Def. \u00faltima no confinada, esp", None))
         self.def_max_sin_confinar.setText(QCoreApplication.translate("material_hormigon", u"0.002", None))
-        self.def_ultima_sin_confinar.setText(QCoreApplication.translate("material_hormigon", u"0.0038", None))
+        self.def_ultima_sin_confinar.setText(QCoreApplication.translate("material_hormigon", u"0.005", None))
         self.def_ultima_confinada.setText(QCoreApplication.translate("material_hormigon", u"0.09", None))
         self.label_19.setText(QCoreApplication.translate("material_hormigon", u"Def. \u00faltima confinada, \u03b5cu", None))
         self.btn_mostrar_diagrama_ed_hormigon.setText(QCoreApplication.translate("material_hormigon", u"Mostrar Diagrama Esfuerzo Deformaci\u00f3n", None))

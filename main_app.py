@@ -122,7 +122,7 @@ class VentanaPrincipal(QMainWindow):
             "esfuerzo_fc": "210",
             "modulo_Ec": "218819.788",
             "def_max_sin_confinar": "0.002",
-            "def_ultima_sin_confinar": "0.0038",
+            "def_ultima_sin_confinar": "0.0038",  # esp 
             "def_ultima_confinada": "0.09",
         }
         self.material_acero_data = {
