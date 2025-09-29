@@ -1,91 +1,87 @@
 import numpy as np
 from scipy.optimize import brentq
 
-def barras_areaXY(b, h, r, dest, n_inf, n_sup, d_inf, d_sup):
-    rec = r + dest
-    filas = []
+def barras(b, h, r, de, n_inf, n_sup, d_inf, d_sup):
+    rec = r + de
+    As = []
+    # capa inferior
+    area_inf = n_inf * (np.pi * (d_inf ** 2) / 4)
+    y_inf = rec + d_inf / 2
+    As.append([area_inf, y_inf])
+    # capa superior
+    area_sup = n_sup * (np.pi * (d_sup ** 2) / 4)
+    y_sup = h - rec - d_sup / 2
+    As.append([area_sup, y_sup])
+    return np.array(As, dtype=float)
 
-    # --- Capa inferior ---
-    if n_inf > 0 and d_inf > 0:
-        area_inf = np.pi * (d_inf**2) / 4.0 * n_inf   # área total de la capa
-        y_inf = rec + d_inf/2.0                       # coordenada y de la capa
-        filas.append([area_inf, y_inf])
+def malla(b, h, r, de, n):
+    rec = r + de / 2
+    y_edges = np.linspace(0, h, n + 1)
+    add = []
+    if 0 < rec < h: add.append(rec)
+    if 0 < h - rec < h: add.append(h - rec)
+    if add:
+        y_edges = np.unique(np.concatenate([y_edges, np.array(add)]))
+        y_edges.sort()
+    y  = (y_edges[:-1] + y_edges[1:]) / 2
+    dy = np.diff(y_edges)
+    A_cover = dy * b
+    Fcover = np.column_stack((y, A_cover))
+    return Fcover
 
-    # --- Capa superior ---
-    if n_sup > 0 and d_sup > 0:
-        area_sup = np.pi * (d_sup**2) / 4.0 * n_sup
-        y_sup = h - rec - d_sup/2.0
-        filas.append([area_sup, y_sup])
-
-    return np.array(filas, dtype=float) if filas else np.empty((0,2), dtype=float)
-
-def malla(h, b, nx, ny):
-    w = (b * h) / (nx * ny)
-    ux = np.linspace(1/(2*nx), 1 - 1/(2*nx), nx)
-    uy = np.linspace(1/(2*ny), 1 - 1/(2*ny), ny)
-    Ux, Uy = np.meshgrid(ux, uy, indexing='ij')
-    x = Ux.ravel() * b
-    y = Uy.ravel() * h
-
-    Su = np.column_stack((x, y))
-    y_u, cont_u = np.unique(Su[:, 1], return_counts=True)
-    Fu = np.column_stack((y_u, cont_u))
-    return Fu, w
-
-### MODELOS CONSTITUTIVOS ###
-def acero_park(e, fy, fsu, Es, ey, esh, esu):
-    e = np.asarray(e)
-    abs_e = np.abs(e)
+def acero_park(es, fy, fsu, Es, ey, esh, esu):
+    es = np.asarray(es)
+    abs_es = np.abs(es)
     r = esu - esh
     m = ((fsu / fy) * (30 * r + 1)**2 - 60 * r - 1) / (15 * r**2)
-    sigma = np.zeros_like(e)
-    zona1 = abs_e <= ey
-    sigma[zona1] = Es * e[zona1]
-    zona2 = (abs_e > ey) & (abs_e <= esh)
-    sigma[zona2] = fy * np.sign(e[zona2])
-    zona3 = (abs_e > esh) & (abs_e <= esu)
-    delta_e = abs_e[zona3] - esh
+    fs = np.zeros_like(es)
+    z1 = (abs_es <= ey)
+    fs[z1] = Es * es[z1]
+    z2 = (abs_es > ey) & (abs_es <= esh)
+    fs[z2] = fy * np.sign(es[z2])
+    z3 = (abs_es > esh) & (abs_es <= esu)
+    delta_e = abs_es[z3] - esh
     parte1 = (m * delta_e + 2) / (60 * delta_e + 2)
     parte2 = delta_e * (60 - m) / (2 * (30 * r + 1)**2)
-    sigma[zona3] = np.sign(e[zona3]) * fy * (parte1 + parte2)
-    return sigma
+    fs[z3] = np.sign(es[z3]) * fy * (parte1 + parte2)
+    return fs
 
-def hormigon_hognestad(e, fc0, ec0, ecu):
-    e = np.asarray(e)
-    sigma = np.zeros_like(e)
-    zona1 = (e >= 0) & (e <= ec0)
-    sigma[zona1] = fc0 * (2 * e[zona1]/ec0 - (e[zona1]/ec0)**2)
-    zona2 = (e > ec0) & (e <= ecu)
-    sigma[zona2] = fc0 * (1 - 0.15 * (e[zona2] - ec0)/(ecu - ec0))
-    return sigma
+def hognestad(ec, fc0, ec0, esp):
+    e = np.asarray(ec)
+    fc = np.zeros_like(ec)
+    z1 = (ec >= 0) & (ec <= ec0)
+    fc[z1] = fc0 * (2 * (ec[z1] / ec0) - (ec[z1] / ec0) ** 2)
+    z2 = (ec > ec0) & (ec <= esp)
+    fc[z2] = fc0 * (1 - 0.15 * (ec[z2] - ec0) / (esp - ec0))
+    return fc
 
-def resultantes_hormigon(Fibras, sigma_c, tan_theta, c, w, fc0, ec0, ecu):
+def resultantes_hormigon(Fibras, sigma_c, tan_theta, c, fc0, ec0, ecu):
     y = Fibras[:, 0]
-    a = Fibras[:, 1] * w
-    e = tan_theta * (y - c)
-    sigma = sigma_c(e, fc0, ec0, ecu)
+    a = Fibras[:, 1]
+    ec = tan_theta * (y - c)
+    sigma = sigma_c(ec, fc0, ec0, ecu)
     N = np.sum(sigma * a)
     M = np.sum(sigma * a * (y - c))
     return N, M
 
-def resultantes(theta, Fu, w, As, c, fc0, ec0, ecu, fy, fsu, Es, ey, esh, esu):
+def resultantes(theta, Fu, As, c, fc0, ec0, ecu, fy, fsu, Es, ey, esh, esu):
     tan_theta = np.tan(theta)
-    N_UC, M_UC = resultantes_hormigon(Fu, hormigon_hognestad, tan_theta, c, w, fc0, ec0, ecu)
+    N_UC, M_UC = resultantes_hormigon(Fu, hognestad, tan_theta, c, fc0, ec0, ecu)
     es = tan_theta * (As[:, 1] - c)
     sigma_s = acero_park(es, fy, fsu, Es, ey, esh, esu)
     N_S = np.sum(sigma_s * As[:, 0])
     M_S = np.sum(sigma_s * As[:, 0] * (As[:, 1] - c))
     return N_UC + N_S, M_UC + M_S
 
-def momrot(theta, Fu, w, As, h, tol, cmin, cmax, fc0, ec0, ecu, fy, fsu, Es, ey, esh, esu):
+def momrot(theta, Fu, As, h, tol, cmin, cmax, fc0, ec0, ecu, fy, fsu, Es, ey, esh, esu):
     def equilibrio(c):
-        N, _ = resultantes(theta, Fu, w, As, c, fc0, ec0, ecu, fy, fsu, Es, ey, esh, esu)
+        N, _ = resultantes(theta, Fu, As, c, fc0, ec0, ecu, fy, fsu, Es, ey, esh, esu)
         return N
     c = brentq(equilibrio, cmin, cmax, xtol=tol)
-    _, M = resultantes(theta, Fu, w, As, c, fc0, ec0, ecu, fy, fsu, Es, ey, esh, esu)
+    _, M = resultantes(theta, Fu, As, c, fc0, ec0, ecu, fy, fsu, Es, ey, esh, esu)
     return M, c
 
-def diagrama_MC(Fu, w, As, h, tol, thetaf, m, fc0, ec0, ecu, fy, fsu, Es, ey, esh, esu):
+def diagrama_MC(Fu, As, h, tol, thetaf, m, fc0, ec0, ecu, fy, fsu, Es, ey, esh, esu):
     dtheta = thetaf / m
     thetas = np.linspace(0, thetaf - dtheta, m)
     M = np.zeros(m)
@@ -93,45 +89,50 @@ def diagrama_MC(Fu, w, As, h, tol, thetaf, m, fc0, ec0, ecu, fy, fsu, Es, ey, es
     delta_frac = 0.01
     cmin_base = 0
     cmax_base = h
-    M[0], c_sol[0] = momrot(thetas[0], Fu, w, As, h, tol, cmin_base, cmax_base,
+    M[0], c_sol[0] = momrot(thetas[0], Fu, As, h, tol, cmin_base, cmax_base,
                             fc0, ec0, ecu, fy, fsu, Es, ey, esh, esu)
     for i in range(1, m):
         delta = h * delta_frac
         cmin = max(c_sol[i-1] - delta, cmin_base)
         cmax = min(c_sol[i-1] + delta, cmax_base)
         try:
-            M[i], c_sol[i] = momrot(thetas[i], Fu, w, As, h, tol, cmin, cmax,
+            M[i], c_sol[i] = momrot(thetas[i], Fu, As, h, tol, cmin, cmax,
                                     fc0, ec0, ecu, fy, fsu, Es, ey, esh, esu)
         except ValueError:
-            M[i], c_sol[i] = momrot(thetas[i], Fu, w, As, h, tol, cmin_base, cmax_base,
+            M[i], c_sol[i] = momrot(thetas[i], Fu, As, h, tol, cmin_base, cmax_base,
                                     fc0, ec0, ecu, fy, fsu, Es, ey, esh, esu)
     return M, thetas
 
 def ejecutar_mc_hognestad_viga (datos_hormigon, datos_acero, datos_seccion, datos_fibras):
-    fc0 = float(datos_hormigon.get("esfuerzo_fc"))              # Esfuerzo máximo (kg/cm² o MPa)
-    Es = float(datos_acero.get("modulo_Es"))                 # Módulo de elasticidad (kg/cm² o MPa)
-    ec0 = float(datos_hormigon.get("def_max_sin_confinar"))     # Deformación máxima (pico)
-    ecu = float(datos_hormigon.get("def_ultima_sin_confinar")) 
-    esu = float(datos_hormigon.get("def_ultima_confinada"))     # Deformación última
-    fy = float(datos_acero.get("esfuerzo_fy"))     # Esfuerzo de fluencia
+    fc0 = float(datos_hormigon.get("esfuerzo_fc"))
+    ec0 = float(datos_hormigon.get("def_max_sin_confinar"))
+    esp = float(datos_hormigon.get("def_ultima_sin_confinar"))
+
+    Es = float(datos_acero.get("modulo_Es"))
+    fy = float(datos_acero.get("esfuerzo_fy"))
     fsu = float(datos_acero.get("esfuerzo_ultimo_acero"))
     ey = float(datos_acero.get("def_fluencia_acero"))
     esh = float(datos_acero.get("def_inicio_endurecimiento"))
-    b = float(datos_seccion.get("disenar_viga_base"))     # Esfuerzo de fluencia
-    h = float(datos_seccion.get("disenar_viga_altura"))     # Esfuerzo de fluencia
-    rec = float(datos_seccion.get("disenar_viga_recubrimiento"))     # Esfuerzo de fluencia
-    nx = int(float(datos_fibras.get("fibras_x")))
-    ny = int(float(datos_fibras.get("fibras_y")))
+    esu = float(datos_hormigon.get("def_ultima_confinada"))
+
+    b = float(datos_seccion.get("disenar_viga_base"))
+    h = float(datos_seccion.get("disenar_viga_altura"))
+    r = float(datos_seccion.get("disenar_viga_recubrimiento"))
     n_inf = int(float(datos_seccion.get("disenar_viga_varillas_inferior")))
     n_sup = int(float(datos_seccion.get("disenar_viga_varillas_superior")))
-    tol = 1e-3
-    thetaf = 4/1000
-    m = int(100)
-    de = float(datos_seccion.get("disenar_viga_diametro_transversal"))/10     # Esfuerzo de fluencia
+    de = float(datos_seccion.get("disenar_viga_diametro_transversal"))/10
     d_inf = float(datos_seccion.get("disenar_viga_diametro_inferior"))/10
     d_sup = float(datos_seccion.get("disenar_viga_diametro_superior"))/10
-    As = barras_areaXY(b, h, rec, de, n_inf, n_sup, d_inf, d_sup)
-    Fu, w = malla(h, b, nx, ny)
-    M, thetas = diagrama_MC(Fu, w, As, h, tol, thetaf, m,
-                               fc0, ec0, ecu, fy, fsu, Es, ey, esh, esu)
+    
+    nx = int(float(datos_fibras.get("fibras_x")))
+    ny = int(float(datos_fibras.get("fibras_y")))
+
+    tol = 1e-3
+    thetaf = 4/1000
+    m = 100
+
+    As = barras(b, h, r, de, n_inf, n_sup, d_inf, d_sup)
+    Fu = malla(b, h, r, de, ny)
+    M, thetas = diagrama_MC(Fu, As, h, tol, thetaf, m,
+                               fc0, ec0, esp, fy, fsu, Es, ey, esh, esu)
     return M/10**5, thetas*100

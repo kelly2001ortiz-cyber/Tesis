@@ -103,11 +103,11 @@ class VentanaMostrarMC(QDialog):
     def mostrar_tabla(self):
         checks = {
             "hognestad": self.ui.checkBox_2,
-            "mander_no_conf": self.ui.checkBox_3,
+            "mander_conf": self.ui.checkBox_3,
         }
         etiquetas = {
             "hognestad": "Hognestad",
-            "mander_no_conf": "Mander",
+            "mander_conf": "Mander",
         }
         VentanaMostrarTabla(self._series, checks, etiquetas,
             titulo="Tabla de resultados Momento–Curvatura",
@@ -118,7 +118,7 @@ class VentanaMostrarMC(QDialog):
     def _etiqueta(self, clave: str) -> str:
         return {
             "hognestad": "Hognestad",
-            "mander_no_conf": "Mander",
+            "mander_conf": "Mander",
         }.get(clave, clave)
 
     def actualizar_grafica(self):
@@ -155,7 +155,7 @@ class VentanaMostrarMC(QDialog):
         # Qué curvas ploteamos según checkboxes
         modelos = [
             ("hognestad",      self.ui.checkBox_2, 'magenta'),  
-            ("mander_no_conf", self.ui.checkBox_3, 'blue'),  
+            ("mander_conf", self.ui.checkBox_3, 'blue'),  
         ]
 
         algo_dibujado = False
