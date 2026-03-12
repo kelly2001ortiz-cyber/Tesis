@@ -102,8 +102,6 @@ def calcular_respuesta_seccion(
     Asl = n_var_sup * (np.pi / 4 * (d_var_sup / 10) ** 2)  # cm2
     Av = 2 * np.pi / 4 * (d_est) ** 2                      # cm2
     EI = Ec * 10 * I / 100**4
-
-    # Factor B1
     B1 = 1.05 - fc / 1400 if fc > 280 else 0.85
     B1 = max(B1, 0.65)
 
@@ -173,10 +171,8 @@ def ejecutar_mc_asce_viga(datos_hormigon, datos_acero, datos_seccion, datos_asce
     Ec = float(datos_hormigon.get("modulo_Ec"))
     ec0 = float(datos_hormigon.get("def_max_sin_confinar"))
     ecu = float(datos_hormigon.get("def_ultima_sin_confinar"))
-
     fy = float(datos_acero.get("esfuerzo_fy"))
     ey = float(datos_acero.get("def_fluencia_acero"))
-
     b = float(datos_seccion.get("disenar_viga_base"))
     h = float(datos_seccion.get("disenar_viga_altura"))
     rec = float(datos_seccion.get("disenar_viga_recubrimiento"))
@@ -186,7 +182,6 @@ def ejecutar_mc_asce_viga(datos_hormigon, datos_acero, datos_seccion, datos_asce
     d_var_inf = float(datos_seccion.get("disenar_viga_diametro_inferior"))
     d_var_sup = float(datos_seccion.get("disenar_viga_diametro_superior"))
     s_est = float(datos_seccion.get("disenar_viga_espaciamiento"))
-
     Long = float(datos_asce.get("long_viga_asce"))
 
     M, thetas, Mr, rots = calcular_respuesta_seccion(
