@@ -167,9 +167,6 @@ class VentanaPrincipal(QMainWindow):
         self.asce_data = {
             # Viga
             "long_viga_asce": "6",
-            "coef_viga_asce": "1.05",
-            "cortante_viga_asce": "2000",
-            "condicion_viga_asce": "Flexión",
             # Columna
             "axial_columna_asce": "20000",
             # Campos de solo-lectura (se sobreescriben SIEMPRE antes de abrir el diálogo)
@@ -201,19 +198,13 @@ class VentanaPrincipal(QMainWindow):
 
         # LineEdits relevantes (solo cambios del usuario)
         for name in (
-            "def_max_asce", "def_ultima_asce", "def_fluencia_asce",
-            "cortante_viga_asce", "axial_columna_asce",
-            "long_viga_asce", "coef_viga_asce",
+            "def_max_asce", "def_ultima_asce", "def_fluencia_asce", "axial_columna_asce",
+            "long_viga_asce",
         ):
             le = getattr(dlg.ui, name, None)
             if le is not None:
                 _c(le.textEdited)
-
-        # Combo Flexión/Corte
-        cb = getattr(dlg.ui, "condicion_viga_asce", None)
-        if cb is not None:
-            _c(cb.currentIndexChanged)
-
+                
         # Check de curvatura
         chk = getattr(dlg.ui, "checkBox_curvatura", None)
         if chk is not None:
@@ -638,49 +629,8 @@ class VentanaPrincipal(QMainWindow):
         self.ui.columna_total_as.setText(str(As))
         self.ui.columna_rho.setText(str(rho))
 
-    # === NUEVO helper: condición ASCE como texto consistente ===
-    def _condicion_asce_text(self) -> str:
-        """
-        Devuelve siempre 'Flexión' o 'Corte', sin importar si viene de combo, índice o texto.
-        """
-        alias = {
-            "0": "Flexión", 0: "Flexión",
-            "1": "Corte",   1: "Corte",
-            "Flexion": "Flexión", "flexion": "Flexión", "flexión": "Flexión",
-            "corte": "Corte"
-        }
-
-        # 1) Si el diálogo está abierto, usa el combo NUEVO (condicion_viga_asce)
-        try:
-            if hasattr(self, "ventana_definir_asce") and self.ventana_definir_asce is not None:
-                txt = self.ventana_definir_asce.ui.condicion_viga_asce.currentText().strip()
-                return alias.get(txt, txt)
-        except Exception:
-            pass
-
-        # 2) Si no hay diálogo, intenta desde asce_data (texto o índice)
-        try:
-            if "condicion_viga_asce_text" in self.asce_data:
-                txt = str(self.asce_data.get("condicion_viga_asce_text", "")).strip()
-                return alias.get(txt, txt) or "Flexión"
-
-            if "condicion_viga_asce" in self.asce_data:
-                val = self.asce_data["condicion_viga_asce"]
-                return alias.get(val, "Flexión")
-
-            # compat histórico por si quedó esta clave
-            if "condicion_columna_asce" in self.asce_data:
-                val = self.asce_data["condicion_columna_asce"]
-                return alias.get(val, "Flexión")
-        except Exception:
-            pass
-
-        # 3) Fallback
-        return "Flexión"
-
     def actualizar_seccion_columna_data(self, datos):
         self.seccion_columna_data = datos.copy()
-        condicion = self._condicion_asce_text()
         mc_matriz, mc_series, di_matriz, di_series = self.calc_mc.ejecutar(
             self.material_hormigon_data,
             self.material_acero_data,
@@ -725,7 +675,6 @@ class VentanaPrincipal(QMainWindow):
 
     def actualizar_seccion_viga_data(self, datos):
         self.seccion_viga_data = datos.copy()
-        condicion = self._condicion_asce_text()
 
         mc_matriz, mc_series = self.calc_mcv.ejecutar(
             self.material_hormigon_data,

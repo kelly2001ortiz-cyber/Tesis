@@ -59,18 +59,9 @@ class VentanaDefinirASCE(QDialog):
 
     # Campos editables (para validar, snapshot y reglas de limpieza)
     _CAMPOS_EDITABLES = (
-        "def_max_asce", "def_ultima_asce", "def_fluencia_asce",
-        "cortante_viga_asce", "axial_columna_asce",
-        "long_viga_asce", "coef_viga_asce",
+        "def_max_asce", "def_ultima_asce", "def_fluencia_asce", "axial_columna_asce",
+        "long_viga_asce",
     )
-
-    # Alias robustos para la condición de viga
-    _ALIAS_CONDICION = {
-        "Flexion": "Flexión", "flexion": "Flexión", "flexión": "Flexión",
-        "0": "Flexión", 0: "Flexión",
-        "1": "Corte",   1: "Corte",
-        "Corte": "Corte", "corte": "Corte"
-    }
 
     def __init__(self, seccion_actual: str, datos_iniciales: Optional[dict] = None, parent=None):
         super().__init__(parent)
@@ -109,10 +100,6 @@ class VentanaDefinirASCE(QDialog):
             campo.textChanged.connect(lambda _, le=campo: self.on_modificacion(le))
             campo.editingFinished.connect(lambda le=campo: self._normalizar_y_actualizar(le))
             campo.installEventFilter(self)
-
-        # Combo Flexión/Corte (si existe)
-        if hasattr(self.ui, "condicion_viga_asce"):
-            self.ui.condicion_viga_asce.currentIndexChanged.connect(self._on_condicion_cambiada)
 
         # Botones de calcular
         self.ui.btn_calcular_rotacion.clicked.connect(self._calc_y_plot_rotacion)
@@ -157,8 +144,6 @@ class VentanaDefinirASCE(QDialog):
         self._refrescar_campos_materiales_desde_dicts()  # 1) material -> _asce_data
         self._cargar_datos(self._asce_data)              # 2) _asce_data -> UI
         self._snapshot_ui = self._obtener_datos()        # 3) snapshot
-        if hasattr(self.ui, "condicion_viga_asce"):
-            self._snapshot_ui["condicion_viga_asce_text"] = self.ui.condicion_viga_asce.currentText().strip()
 
         # 4) checkBox_curvatura gobierna groupBox_3
         if hasattr(self.ui, "checkBox_curvatura") and hasattr(self.ui, "groupBox_3"):
@@ -212,6 +197,13 @@ class VentanaDefinirASCE(QDialog):
         except Exception:
             pass
 
+    def _obtener_datos(self) -> dict:
+        return {
+            k: getattr(self.ui, k).text().strip()
+            for k in self._CAMPOS_EDITABLES
+            if hasattr(self.ui, k)
+        }
+    
     # ----------------- Carga / snapshot -----------------
     def _cargar_datos(self, d: dict):
         if not isinstance(d, dict):
@@ -219,18 +211,6 @@ class VentanaDefinirASCE(QDialog):
         for key in self._CAMPOS_EDITABLES:
             if key in d and hasattr(self.ui, key):
                 getattr(self.ui, key).setText(str(d.get(key, "")))
-        if hasattr(self.ui, "condicion_viga_asce") and "condicion_viga_asce_text" in d:
-            txt = str(d.get("condicion_viga_asce_text", "")).strip()
-            idx = self.ui.condicion_viga_asce.findText(txt)
-            if idx >= 0:
-                self.ui.condicion_viga_asce.setCurrentIndex(idx)
-
-    def _obtener_datos(self) -> dict:
-        datos = {k: getattr(self.ui, k).text().strip() for k in self._CAMPOS_EDITABLES if hasattr(self.ui, k)}
-        if hasattr(self.ui, "condicion_viga_asce"):
-            datos["condicion_viga_asce_index"] = self.ui.condicion_viga_asce.currentIndex()
-            datos["condicion_viga_asce_text"] = self.ui.condicion_viga_asce.currentText().strip()
-        return datos
 
     def _actualizar_asce_data(self):
         self._asce_data.update(self._obtener_datos())
@@ -285,19 +265,6 @@ class VentanaDefinirASCE(QDialog):
         if key:
             self._snapshot_ui[key] = self._valor_lineedit(line_edit)
 
-    def _on_condicion_cambiada(self, _=None):
-        if self._hidratando or not hasattr(self.ui, "condicion_viga_asce"):
-            return
-        nuevo_txt = self.ui.condicion_viga_asce.currentText().strip()
-        if nuevo_txt == self._snapshot_ui.get("condicion_viga_asce_text", ""):
-            return
-        self._actualizar_asce_data()
-        self._snapshot_ui["condicion_viga_asce_text"] = nuevo_txt
-        etiqueta_x = {"rotacion": "Rotación, \u03B8 (rad)", "curvatura": "Curvatura, \u03BA (1/m)"}\
-            .get(self._grafica_actual, "")
-        self._limpiar_cuadricula(etiqueta_x)
-        self._borrar_persistencia_grafica()
-
     def _on_toggle_curvatura(self, _state):
         try:
             if hasattr(self.ui, "groupBox_3"):
@@ -307,7 +274,10 @@ class VentanaDefinirASCE(QDialog):
 
     # ----------------- Reglas de limpieza tras edición -----------------
     def _post_edicion_lineedit(self, line_edit):
-        solo_curvatura = {self.ui.long_viga_asce, self.ui.coef_viga_asce}
+        solo_curvatura = set()
+        if hasattr(self.ui, "long_viga_asce"):
+            solo_curvatura.add(self.ui.long_viga_asce)
+        
         etiqueta_x = {"rotacion": "Rotación, \u03B8 (rad)", "curvatura": "Curvatura, \u03BA (1/m)"}\
             .get(self._grafica_actual, "")
         if line_edit in solo_curvatura:
@@ -328,15 +298,9 @@ class VentanaDefinirASCE(QDialog):
             except Exception:
                 direccion = str(getattr(self, "_direccion", "")) or ""
 
-        condicion = "Flexión"
-        if hasattr(self.ui, "condicion_viga_asce"):
-            cond_txt = self.ui.condicion_viga_asce.currentText().strip()
-            condicion = self._ALIAS_CONDICION.get(cond_txt, cond_txt or "Flexión")
-
         datos = {
             "tipo_seccion": tipo,
             "direccion": direccion,
-            "condicion_viga": condicion,
         }
         datos.update(self._obtener_datos())
         for k in ("_datos_hormigon", "_datos_acero", "_datos_seccion"):
@@ -520,7 +484,6 @@ class VentanaDefinirASCE(QDialog):
         p = self._paquete_datos()
         tipo_seccion = p.get("tipo_seccion", "Viga")
         direccion    = p.get("direccion", "")
-        condicion    = p.get("condicion_viga", "Flexión")
 
         datos_hormigon = p.get("datos_hormigon", {}) or {}
         datos_acero    = p.get("datos_acero", {}) or {}
@@ -530,19 +493,17 @@ class VentanaDefinirASCE(QDialog):
             "def_max_asce", "def_ultima_asce", "def_fluencia_asce",
             "cortante_viga_asce", "axial_columna_asce",
             "long_viga_asce", "coef_viga_asce",
-            "condicion_viga_asce_text", "condicion_viga_asce_index",
         ]
         datos_asce = {k: p.get(k) for k in keys_asce if k in p}
 
         try:
             if hasattr(calc, "calcular"):
-                return calc.calcular(tipo_seccion, direccion, condicion,
+                return calc.calcular(tipo_seccion, direccion,
                                      datos_hormigon, datos_acero, datos_seccion, datos_asce)
             if hasattr(calc, "calcular_series"):
                 payload = {
                     "tipo_seccion":  tipo_seccion,
                     "direccion":     direccion,
-                    "condicion_viga": condicion,
                     "datos_hormigon": datos_hormigon,
                     "datos_acero":    datos_acero,
                     "datos_seccion":  datos_seccion,

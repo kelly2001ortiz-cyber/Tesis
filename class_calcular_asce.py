@@ -13,18 +13,18 @@ class CalculadoraASCE:
         except Exception:
             return str(widget_o_texto).strip()
 
-    def calcular(self, tipo_seccion, direccion, condicion,
+    def calcular(self, tipo_seccion, direccion,
                  datos_hormigon, datos_acero, datos_seccion, datos_asce):
         tipo  = self._texto(tipo_seccion)
         direc = self._texto(direccion)
 
         if tipo.lower() == "viga":
-            M, thetas, Mr, rots = _run_asce_viga(datos_hormigon, datos_acero, datos_seccion, datos_asce, condicion)
+            M, thetas, Mr, rots = _run_asce_viga(datos_hormigon, datos_acero, datos_seccion, datos_asce)
         else:
             if direc == "Dirección X":
-                M, thetas, Mr, rots = _run_asce_columnaX(datos_hormigon, datos_acero, datos_seccion, datos_asce, condicion)
+                M, thetas, Mr, rots = _run_asce_columnaX(datos_hormigon, datos_acero, datos_seccion, datos_asce)
             else:
-                M, thetas, Mr, rots = _run_asce_columnaY(datos_hormigon, datos_acero, datos_seccion, datos_asce, condicion)
+                M, thetas, Mr, rots = _run_asce_columnaY(datos_hormigon, datos_acero, datos_seccion, datos_asce)
 
         return {
             "rotacion":  (np.asarray(rots,   float), np.asarray(Mr, float)),

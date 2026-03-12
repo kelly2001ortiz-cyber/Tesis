@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'definir_ascemnuCnn.ui'
+## Form generated from reading UI file 'definir_asceRlFkvp.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.4.3
 ##
@@ -15,9 +15,9 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QFont, QFontDatabase, QGradient, QIcon,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
-from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
-    QGroupBox, QLabel, QLineEdit, QPushButton,
-    QSizePolicy, QWidget)
+from PySide6.QtWidgets import (QApplication, QCheckBox, QDialog, QGroupBox,
+    QLabel, QLineEdit, QPushButton, QSizePolicy,
+    QWidget)
 
 class Ui_definir_asce(object):
     def setupUi(self, definir_asce):
@@ -54,23 +54,6 @@ class Ui_definir_asce(object):
         self.groupBox_2 = QGroupBox(definir_asce)
         self.groupBox_2.setObjectName(u"groupBox_2")
         self.groupBox_2.setGeometry(QRect(10, 150, 331, 171))
-        self.label_16 = QLabel(self.groupBox_2)
-        self.label_16.setObjectName(u"label_16")
-        self.label_16.setGeometry(QRect(30, 60, 111, 16))
-        self.cortante_viga_asce = QLineEdit(self.groupBox_2)
-        self.cortante_viga_asce.setObjectName(u"cortante_viga_asce")
-        self.cortante_viga_asce.setGeometry(QRect(200, 60, 81, 22))
-        self.label_19 = QLabel(self.groupBox_2)
-        self.label_19.setObjectName(u"label_19")
-        self.label_19.setGeometry(QRect(30, 90, 91, 16))
-        self.label_17 = QLabel(self.groupBox_2)
-        self.label_17.setObjectName(u"label_17")
-        self.label_17.setGeometry(QRect(290, 60, 31, 16))
-        self.condicion_viga_asce = QComboBox(self.groupBox_2)
-        self.condicion_viga_asce.addItem("")
-        self.condicion_viga_asce.addItem("")
-        self.condicion_viga_asce.setObjectName(u"condicion_viga_asce")
-        self.condicion_viga_asce.setGeometry(QRect(200, 90, 81, 22))
         self.label_25 = QLabel(self.groupBox_2)
         self.label_25.setObjectName(u"label_25")
         self.label_25.setGeometry(QRect(290, 30, 31, 16))
@@ -86,15 +69,9 @@ class Ui_definir_asce(object):
         self.groupBox_3 = QGroupBox(definir_asce)
         self.groupBox_3.setObjectName(u"groupBox_3")
         self.groupBox_3.setGeometry(QRect(10, 360, 331, 141))
-        self.coef_viga_asce = QLineEdit(self.groupBox_3)
-        self.coef_viga_asce.setObjectName(u"coef_viga_asce")
-        self.coef_viga_asce.setGeometry(QRect(200, 60, 81, 22))
         self.label_13 = QLabel(self.groupBox_3)
         self.label_13.setObjectName(u"label_13")
         self.label_13.setGeometry(QRect(30, 30, 121, 16))
-        self.label_15 = QLabel(self.groupBox_3)
-        self.label_15.setObjectName(u"label_15")
-        self.label_15.setGeometry(QRect(30, 60, 121, 16))
         self.label_14 = QLabel(self.groupBox_3)
         self.label_14.setObjectName(u"label_14")
         self.label_14.setGeometry(QRect(290, 30, 31, 16))
@@ -126,21 +103,12 @@ class Ui_definir_asce(object):
         self.def_ultima_asce.setText(QCoreApplication.translate("definir_asce", u"0.0038", None))
         self.def_fluencia_asce.setText(QCoreApplication.translate("definir_asce", u"0.0021", None))
         self.groupBox_2.setTitle(QCoreApplication.translate("definir_asce", u"Momento - Rotaci\u00f3n", None))
-        self.label_16.setText(QCoreApplication.translate("definir_asce", u"Cortante, V", None))
-        self.cortante_viga_asce.setText(QCoreApplication.translate("definir_asce", u"2000", None))
-        self.label_19.setText(QCoreApplication.translate("definir_asce", u"Condici\u00f3n", None))
-        self.label_17.setText(QCoreApplication.translate("definir_asce", u"kg", None))
-        self.condicion_viga_asce.setItemText(0, QCoreApplication.translate("definir_asce", u"Flexi\u00f3n", None))
-        self.condicion_viga_asce.setItemText(1, QCoreApplication.translate("definir_asce", u"Corte", None))
-
         self.label_25.setText(QCoreApplication.translate("definir_asce", u"kg", None))
         self.label_20.setText(QCoreApplication.translate("definir_asce", u"Carga Axial, P", None))
         self.axial_columna_asce.setText(QCoreApplication.translate("definir_asce", u"20000", None))
         self.btn_calcular_rotacion.setText(QCoreApplication.translate("definir_asce", u"PushButton", None))
         self.groupBox_3.setTitle(QCoreApplication.translate("definir_asce", u"Momento - Curvatura", None))
-        self.coef_viga_asce.setText(QCoreApplication.translate("definir_asce", u"05", None))
         self.label_13.setText(QCoreApplication.translate("definir_asce", u"Longitud Total, L", None))
-        self.label_15.setText(QCoreApplication.translate("definir_asce", u"Coeficiente", None))
         self.label_14.setText(QCoreApplication.translate("definir_asce", u"m", None))
         self.long_viga_asce.setText(QCoreApplication.translate("definir_asce", u"6", None))
         self.btn_calcular_curvatura.setText(QCoreApplication.translate("definir_asce", u"PushButton", None))
