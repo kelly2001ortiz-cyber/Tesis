@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'ventana_principal - copiaTSDeMs.ui'
+## Form generated from reading UI file 'ventana_principal - copiatpDNTl.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.4.3
 ##
@@ -370,8 +370,8 @@ class Ui_ventana_principal(object):
         self.scrollArea.setWidgetResizable(True)
         self.scrollAreaWidgetContents = QWidget()
         self.scrollAreaWidgetContents.setObjectName(u"scrollAreaWidgetContents")
-        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 277, 530))
-        self.scrollAreaWidgetContents.setMinimumSize(QSize(0, 530))
+        self.scrollAreaWidgetContents.setGeometry(QRect(0, -187, 277, 590))
+        self.scrollAreaWidgetContents.setMinimumSize(QSize(0, 590))
         self.groupBox_8 = QGroupBox(self.scrollAreaWidgetContents)
         self.groupBox_8.setObjectName(u"groupBox_8")
         self.groupBox_8.setGeometry(QRect(10, 10, 255, 55))
@@ -451,7 +451,7 @@ class Ui_ventana_principal(object):
         self.disenar_columna_recubrimiento.setGeometry(QRect(140, 20, 81, 22))
         self.groupBox_14 = QGroupBox(self.scrollAreaWidgetContents)
         self.groupBox_14.setObjectName(u"groupBox_14")
-        self.groupBox_14.setGeometry(QRect(10, 370, 261, 145))
+        self.groupBox_14.setGeometry(QRect(10, 370, 255, 145))
         self.label_36 = QLabel(self.groupBox_14)
         self.label_36.setObjectName(u"label_36")
         self.label_36.setGeometry(QRect(30, 20, 101, 16))
@@ -482,6 +482,18 @@ class Ui_ventana_principal(object):
         self.label_44 = QLabel(self.groupBox_14)
         self.label_44.setObjectName(u"label_44")
         self.label_44.setGeometry(QRect(230, 110, 21, 16))
+        self.groupBox_6 = QGroupBox(self.scrollAreaWidgetContents)
+        self.groupBox_6.setObjectName(u"groupBox_6")
+        self.groupBox_6.setGeometry(QRect(10, 520, 255, 55))
+        self.disenar_columna_axial = QLineEdit(self.groupBox_6)
+        self.disenar_columna_axial.setObjectName(u"disenar_columna_axial")
+        self.disenar_columna_axial.setGeometry(QRect(140, 20, 81, 22))
+        self.label_49 = QLabel(self.groupBox_6)
+        self.label_49.setObjectName(u"label_49")
+        self.label_49.setGeometry(QRect(30, 20, 101, 16))
+        self.label_50 = QLabel(self.groupBox_6)
+        self.label_50.setObjectName(u"label_50")
+        self.label_50.setGeometry(QRect(230, 20, 21, 16))
         self.scrollArea.setWidget(self.scrollAreaWidgetContents)
 
         self.horizontalLayout_3.addWidget(self.scrollArea)
@@ -527,7 +539,7 @@ class Ui_ventana_principal(object):
         self.scrollArea_2.setWidgetResizable(True)
         self.scrollAreaWidgetContents_3 = QWidget()
         self.scrollAreaWidgetContents_3.setObjectName(u"scrollAreaWidgetContents_3")
-        self.scrollAreaWidgetContents_3.setGeometry(QRect(0, 0, 277, 500))
+        self.scrollAreaWidgetContents_3.setGeometry(QRect(0, -97, 277, 500))
         self.scrollAreaWidgetContents_3.setMinimumSize(QSize(0, 500))
         self.groupBox_18 = QGroupBox(self.scrollAreaWidgetContents_3)
         self.groupBox_18.setObjectName(u"groupBox_18")
@@ -829,6 +841,10 @@ class Ui_ventana_principal(object):
         self.disenar_columna_espaciamiento.setText("")
         self.label_43.setText(QCoreApplication.translate("ventana_principal", u"Espaciamiento", None))
         self.label_44.setText(QCoreApplication.translate("ventana_principal", u"cm", None))
+        self.groupBox_6.setTitle(QCoreApplication.translate("ventana_principal", u"Carga Axial", None))
+        self.disenar_columna_axial.setText(QCoreApplication.translate("ventana_principal", u"3000", None))
+        self.label_49.setText(QCoreApplication.translate("ventana_principal", u"Carga Axial", None))
+        self.label_50.setText(QCoreApplication.translate("ventana_principal", u"kg", None))
         self.btn_calcular_columna.setText(QCoreApplication.translate("ventana_principal", u"Calcular", None))
         self.groupBox_18.setTitle(QCoreApplication.translate("ventana_principal", u"Informaci\u00f3n General", None))
         self.label_22.setText(QCoreApplication.translate("ventana_principal", u"Nombre", None))

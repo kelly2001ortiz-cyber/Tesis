@@ -105,9 +105,6 @@ class VentanaDefinirASCE(QDialog):
         self.ui.btn_calcular_rotacion.clicked.connect(self._calc_y_plot_rotacion)
         self.ui.btn_calcular_curvatura.clicked.connect(self._calc_y_plot_curvatura)
 
-        # Axial solo para columnas
-        self.ui.axial_columna_asce.setEnabled(self._tipo_seccion != "Viga")
-
         # ====== Canvas Matplotlib ======
         self.figure = plt.figure()
         self.canvas = FigureCanvas(self.figure)
@@ -226,6 +223,14 @@ class VentanaDefinirASCE(QDialog):
             if hasattr(self, "_datos_acero") and isinstance(self._datos_acero, dict):
                 self._asce_data["def_fluencia_asce"] = str(
                     self._datos_acero.get("def_fluencia_acero", self._asce_data.get("def_fluencia_asce", "")))
+            if hasattr(self, "_datos_seccion") and isinstance(self._datos_seccion, dict):
+                if str(self._tipo_seccion).strip().lower() == "columna":
+                    self._asce_data["axial_columna_asce"] = str(
+                    self._datos_seccion.get("disenar_columna_axial", self._asce_data.get("axial_columna_asce", ""))
+                    )
+                else:
+                    self._asce_data["axial_columna_asce"] = "0"
+
         except Exception:
             pass
 
@@ -453,6 +458,7 @@ class VentanaDefinirASCE(QDialog):
             str(d.get("def_max_asce", "")),
             str(d.get("def_ultima_asce", "")),
             str(d.get("def_fluencia_asce", "")),
+            str(d.get("axial_columna_asce", "")),
         )
 
     # ----------------- Errores y validación previa -----------------
@@ -490,9 +496,8 @@ class VentanaDefinirASCE(QDialog):
         datos_seccion  = p.get("datos_seccion", {}) or {}
 
         keys_asce = [
-            "def_max_asce", "def_ultima_asce", "def_fluencia_asce",
-            "cortante_viga_asce", "axial_columna_asce",
-            "long_viga_asce", "coef_viga_asce",
+            "def_max_asce", "def_ultima_asce", "def_fluencia_asce", "axial_columna_asce",
+            "long_viga_asce",
         ]
         datos_asce = {k: p.get(k) for k in keys_asce if k in p}
 

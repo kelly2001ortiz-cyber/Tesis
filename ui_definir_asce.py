@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'definir_asceRlFkvp.ui'
+## Form generated from reading UI file 'definir_asceLZniVh.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.4.3
 ##
@@ -60,12 +60,14 @@ class Ui_definir_asce(object):
         self.label_20 = QLabel(self.groupBox_2)
         self.label_20.setObjectName(u"label_20")
         self.label_20.setGeometry(QRect(30, 30, 121, 16))
-        self.axial_columna_asce = QLineEdit(self.groupBox_2)
-        self.axial_columna_asce.setObjectName(u"axial_columna_asce")
-        self.axial_columna_asce.setGeometry(QRect(200, 30, 81, 22))
         self.btn_calcular_rotacion = QPushButton(self.groupBox_2)
         self.btn_calcular_rotacion.setObjectName(u"btn_calcular_rotacion")
         self.btn_calcular_rotacion.setGeometry(QRect(130, 130, 75, 24))
+        self.axial_columna_asce = QLineEdit(self.groupBox_2)
+        self.axial_columna_asce.setObjectName(u"axial_columna_asce")
+        self.axial_columna_asce.setEnabled(False)
+        self.axial_columna_asce.setGeometry(QRect(200, 30, 81, 22))
+        self.axial_columna_asce.setReadOnly(True)
         self.groupBox_3 = QGroupBox(definir_asce)
         self.groupBox_3.setObjectName(u"groupBox_3")
         self.groupBox_3.setGeometry(QRect(10, 360, 331, 141))
@@ -105,8 +107,8 @@ class Ui_definir_asce(object):
         self.groupBox_2.setTitle(QCoreApplication.translate("definir_asce", u"Momento - Rotaci\u00f3n", None))
         self.label_25.setText(QCoreApplication.translate("definir_asce", u"kg", None))
         self.label_20.setText(QCoreApplication.translate("definir_asce", u"Carga Axial, P", None))
-        self.axial_columna_asce.setText(QCoreApplication.translate("definir_asce", u"20000", None))
         self.btn_calcular_rotacion.setText(QCoreApplication.translate("definir_asce", u"PushButton", None))
+        self.axial_columna_asce.setText(QCoreApplication.translate("definir_asce", u"3000", None))
         self.groupBox_3.setTitle(QCoreApplication.translate("definir_asce", u"Momento - Curvatura", None))
         self.label_13.setText(QCoreApplication.translate("definir_asce", u"Longitud Total, L", None))
         self.label_14.setText(QCoreApplication.translate("definir_asce", u"m", None))

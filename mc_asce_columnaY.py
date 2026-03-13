@@ -171,8 +171,8 @@ def ejecutar_mc_asce_columnaY(datos_hormigon, datos_acero, datos_seccion, datos_
     ram_x = float(datos_seccion.get("disenar_columna_ramalesX"))
     ram_y = float(datos_seccion.get("disenar_columna_ramalesY"))
     s_est = float(datos_seccion.get("disenar_columna_espaciamiento"))
+    P0 = float(datos_seccion.get("disenar_columna_axial")) / 1000.0  # T
     Long = float(datos_asce.get("long_viga_asce"))
-    P0 = float(datos_asce.get("axial_columna_asce")) / 1000.0  # T
 
     M, thetas, Mr, rots = calcular_respuesta_seccion(
         fc, fy, Ec, b, h, rec, d_est, s_est,

@@ -146,6 +146,7 @@ class VentanaPrincipal(QMainWindow):
             "disenar_columna_diametro_transversal": "12",
             "disenar_columna_espaciamiento": "10",
             "disenar_columna_diametro_longitudinal_esq": "30",
+            "disenar_columna_axial": "3000",
         }
         self.seccion_viga_data = {
             "disenar_viga_base": "40",
@@ -165,14 +166,12 @@ class VentanaPrincipal(QMainWindow):
         }
         self.capas_fibras_data = {"fibras_x": "10", "fibras_y": "10"}
         self.asce_data = {
-            # Viga
             "long_viga_asce": "6",
-            # Columna
-            "axial_columna_asce": "20000",
             # Campos de solo-lectura (se sobreescriben SIEMPRE antes de abrir el diálogo)
             "def_max_asce": "",
             "def_ultima_asce": "",
             "def_fluencia_asce": "",
+            "axial_columna_asce": "",
         }
 
     def _wire_dirty_flags(self):
@@ -497,13 +496,15 @@ class VentanaPrincipal(QMainWindow):
         self.asce_data["def_max_asce"]      = str(self.material_hormigon_data.get("def_max_sin_confinar", ""))
         self.asce_data["def_ultima_asce"]   = str(self.material_hormigon_data.get("def_ultima_sin_confinar", ""))
         self.asce_data["def_fluencia_asce"] = str(self.material_acero_data.get("def_fluencia_acero", ""))
-
+              
         # 2) Determinar sección actual y dict de sección a inyectar
         seccion_actual = self.ui.seccion_analisis.currentText()
         if (seccion_actual or "").strip().lower() == "viga":
             datos_seccion = self.seccion_viga_data
+            self.asce_data["axial_columna_asce"] = "0"  # para vigas, el axial no aplica, así que lo ponemos en 0 o vacío
         else:
             datos_seccion = self.seccion_columna_data
+            self.asce_data["axial_columna_asce"] = str(datos_seccion.get("disenar_columna_axial", ""))
 
         # 3) Crear el diálogo pasando self.asce_data por referencia
         #    (El diálogo actualizará este dict en tiempo real)
@@ -521,6 +522,7 @@ class VentanaPrincipal(QMainWindow):
         self.ventana_definir_asce.ui.def_max_asce.setText(self.asce_data["def_max_asce"])
         self.ventana_definir_asce.ui.def_ultima_asce.setText(self.asce_data["def_ultima_asce"])
         self.ventana_definir_asce.ui.def_fluencia_asce.setText(self.asce_data["def_fluencia_asce"])
+        self.ventana_definir_asce.ui.axial_columna_asce.setText(self.asce_data["axial_columna_asce"])
 
         # 6) Ya no usamos callbacks de guardado/cancelado → elimina esta línea:
         # self.ventana_definir_asce.datos_guardados_callback = self._wrap_dirty(self.actualizar_asce_data)
