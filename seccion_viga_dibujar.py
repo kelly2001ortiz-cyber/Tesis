@@ -11,6 +11,7 @@ from PySide6.QtCore import Qt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT
 
+
 class CustomToolbar(NavigationToolbar2QT):
     toolitems = [
         ('Home', 'Reset original view', 'home', 'home'),
@@ -20,7 +21,8 @@ class CustomToolbar(NavigationToolbar2QT):
         ('Zoom', 'Zoom to rectangle', 'zoom_to_rect', 'zoom'),
         ('Save', 'Save the figure', 'filesave', 'save_figure'),
     ]
-    
+
+
 class dibujar_seccion_viga(QWidget):
     def __init__(self, b, h, r, dest, n_sup, n_inf, d_sup, d_inf, *args, show_highlight=True, **kwargs):
         super().__init__(*args, **kwargs)
@@ -98,7 +100,9 @@ class dibujar_seccion_viga(QWidget):
             self._core_rect = patches.Rectangle(v0, w, h, fc='#FFFF00', ec='k', lw=1, alpha=0.5)
             self.ax.add_patch(self._core_rect)
         else:
-            self._core_rect.set_xy(v0); self._core_rect.set_width(w); self._core_rect.set_height(h)
+            self._core_rect.set_xy(v0)
+            self._core_rect.set_width(w)
+            self._core_rect.set_height(h)
 
         verts = [
             (x0 + self.r, y0 + self.r),
@@ -137,22 +141,21 @@ class dibujar_seccion_viga(QWidget):
 
     def barras_longitudinales(self, x0, y0):
         if getattr(self, "_bars_pc", None) is not None:
-            try: self._bars_pc.remove()
-            except Exception: pass
+            try:
+                self._bars_pc.remove()
+            except Exception:
+                pass
             self._bars_pc = None
 
-        # centros “pegados” al contorno interior
         circles, centers = [], []
         x_start, x_end = x0 + self.rec + self.dest/2 + self.d_sup/2, x0 + self.b - self.rec - self.dest/2 - self.d_sup/2
         y_top = y0 + self.h - self.rec - self.dest/2 - self.d_sup/2
         xsup = np.linspace(x_start, x_end, self.n_sup)
 
-        # fila superior
         for x in xsup:
             circles.append(patches.Circle((x, y_top), self.d_sup/2))
             centers.append((x, y_top))
 
-        # fila inferior
         x_start, x_end = x0 + self.rec + self.dest/2 + self.d_inf/2, x0 + self.b - self.rec - self.dest/2 - self.d_inf/2
         y_inf = y0 + self.rec + self.dest/2 + self.d_inf/2
         xinf = np.linspace(x_start, x_end, self.n_inf)
@@ -160,14 +163,12 @@ class dibujar_seccion_viga(QWidget):
             circles.append(patches.Circle((x, y_inf), self.d_inf/2))
             centers.append((x, y_inf))
 
-        # una sola colección; el radio queda EXACTO en unidades de datos
         self._bars_pc = self.ax.add_collection(
-            PatchCollection(circles, facecolor='k', edgecolor='none', zorder=10))
+            PatchCollection(circles, facecolor='k', edgecolor='none', zorder=10)
+        )
 
-        # reemplaza _C para el hover con los centros de barras
         self.circulos_centros = centers
         self._C = np.asarray(centers, dtype=float)
-        # self.canvas.draw_idle()
 
     def _on_draw(self, event=None):
         trans = self.ax.transData.transform
@@ -176,28 +177,42 @@ class dibujar_seccion_viga(QWidget):
 
     def on_mouse_move(self, event):
         if not (event.inaxes and event.x is not None and event.y is not None):
-            self.label.setText(" "); self.remove_highlight(); return
+            self.label.setText(" ")
+            self.remove_highlight()
+            return
+
         def nearest(px_pts, tol):
-            if len(px_pts) == 0: return None
-            d = np.hypot(px_pts[:,0]-event.x, px_pts[:,1]-event.y); i = d.argmin()
+            if len(px_pts) == 0:
+                return None
+            d = np.hypot(px_pts[:, 0] - event.x, px_pts[:, 1] - event.y)
+            i = d.argmin()
             return i if d[i] <= tol else None
+
         i = nearest(self._Vpx, self.pix_tol)
         p = tuple(self._V[i]) if i is not None else None
+
         if p is None:
             j = nearest(self._Cpx, self.pix_tol)
             p = tuple(self._C[j]) if j is not None else None
+
         if p and self.show_highlight:
             self.add_highlight(p)
             self.label.setText(f"X = {p[0]:.2f}    Y = {p[1]:.2f}")
         else:
             self.remove_highlight()
-            self.label.setText(f"X = {event.xdata:.2f}    Y = {event.ydata:.2f}" if (event.xdata is not None and event.ydata is not None) else " ")
+            self.label.setText(
+                f"X = {event.xdata:.2f}    Y = {event.ydata:.2f}"
+                if (event.xdata is not None and event.ydata is not None) else " "
+            )
 
     def add_highlight(self, p):
         if not self.show_highlight:
             return
         if self.highlight_artist is None:
-            (a,) = self.ax.plot(p[0], p[1], marker='o', ms=self.highlight_ms, mfc='red', mec='red', mew=0.5, alpha=0.8, zorder=21)
+            (a,) = self.ax.plot(
+                p[0], p[1], marker='o', ms=self.highlight_ms,
+                mfc='red', mec='red', mew=0.5, alpha=0.8, zorder=21
+            )
             self.highlight_artist = a
         else:
             self.highlight_artist.set_data([p[0]], [p[1]])

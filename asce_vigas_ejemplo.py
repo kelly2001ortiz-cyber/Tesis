@@ -163,7 +163,7 @@ def calcular_respuesta_seccion(
     fy_mpa = fy * 0.0980665
     db_m = d_var_inf / 1000.0
     Lp = calcular_lp_viga_paulay_priestley_1992(z=z, fy_mpa=fy_mpa, db_m=db_m)
-
+    
     # Mi, Mj, cortante
     Mi, Mj, alpha = calcular_momentos_extremo_desde_lp(My, Long, Lp)
     V_calc = calcular_cortante_diseno_desde_momentos(Mi, Mj, Long)

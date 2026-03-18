@@ -73,12 +73,11 @@ class VentanaMostrarMCV(QDialog):
         self.ui.checkBox_3.setChecked(True)  # Mander No Confinado
         self.ui.checkBox_4.setChecked(False)  # Mander Confinado
         self.ui.checkBox_4.setEnabled(False)  # Mander Confinado
-        self.ui.checkBox_5.setChecked(True)  # ASCE
 
         # Conexiones (replot total al cambiar)
         self.ui.checkBox_2.stateChanged.connect(self.actualizar_grafica)
         self.ui.checkBox_3.stateChanged.connect(self.actualizar_grafica)
-        self.ui.checkBox_5.stateChanged.connect(self.actualizar_grafica)
+        self.ui.checkBox_4.stateChanged.connect(self.actualizar_grafica)
 
         # Variables para hover
         self.marker = None
@@ -96,13 +95,11 @@ class VentanaMostrarMCV(QDialog):
             "hognestad": self.ui.checkBox_2,
             "mander_no_conf": self.ui.checkBox_3,
             "mander_confinado": self.ui.checkBox_4,
-            "asce": self.ui.checkBox_5,
         }
         etiquetas = {
             "hognestad": "Hognestad",
             "mander_no_conf": "Mander No Confinado",
             "mander_confinado": "Mander Confinado",
-            "asce": "ASCE",
         }
         VentanaMostrarTabla(self._series, checks, etiquetas,
             titulo="Tabla de resultados Momento–Curvatura",
@@ -114,7 +111,7 @@ class VentanaMostrarMCV(QDialog):
         return {
             "hognestad": "Hognestad",
             "mander_no_conf": "Mander No Confinado",
-            "asce": "ASCE",
+            "mander_confinado": "Mander Confinado",
         }.get(clave, clave)
 
     def actualizar_grafica(self):
@@ -152,7 +149,7 @@ class VentanaMostrarMCV(QDialog):
         modelos = [
             ("hognestad",      self.ui.checkBox_2, 'magenta'),  # color None => por defecto
             ("mander_no_conf", self.ui.checkBox_3, 'blue'),
-            ("asce",           self.ui.checkBox_5, 'orange'),
+            ("mander_confinado", self.ui.checkBox_4, 'green'),
         ]
 
         algo_dibujado = False

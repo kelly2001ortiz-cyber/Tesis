@@ -15,6 +15,7 @@ except Exception:
 import matplotlib.pyplot as plt
 import numpy as np
 
+
 class CustomToolbar(NavigationToolbar2QT):
     # Igual que tu ejemplo: Home, Back, Forward, Pan, Zoom, Save
     toolitems = [
@@ -26,6 +27,7 @@ class CustomToolbar(NavigationToolbar2QT):
         ('Save', 'Save the figure', 'filesave', 'save_figure'),
     ]
 
+
 class VentanaMostrarMC(QDialog):
 
     def __init__(self, seccion_columna_data: dict, seccion_viga_data: dict, mc_series: dict, tipo_seccion, parent=None):
@@ -35,11 +37,10 @@ class VentanaMostrarMC(QDialog):
 
         # Datos
         self._series = mc_series or {}
+        self._tipo_seccion = (tipo_seccion or "").strip().lower()
 
         # --------- Dibuja la sección ----------
-        
-        tipo = (tipo_seccion or "").strip().lower()
-        if tipo == "columna":
+        if self._tipo_seccion == "columna":
             SeccionColumnaGrafico(
                 self.ui.cuadricula_seccionMC,
                 (seccion_columna_data or {}).copy(),
@@ -57,7 +58,7 @@ class VentanaMostrarMC(QDialog):
                 mostrar_coords=False,
                 show_highlight=False,
             )
-        
+
         # Figura y Canvas
         self.figure = plt.figure()
         self.canvas = FigureCanvas(self.figure)
@@ -69,10 +70,12 @@ class VentanaMostrarMC(QDialog):
         if not layout:
             layout = QVBoxLayout(self.ui.cuadricula_MC)
             self.ui.cuadricula_MC.setLayout(layout)
+
         while layout.count():
             child = layout.takeAt(0)
             if child.widget():
                 child.widget().deleteLater()
+
         layout.addWidget(self.toolbar)
         layout.addWidget(self.canvas)
 
@@ -81,13 +84,24 @@ class VentanaMostrarMC(QDialog):
         self.lbl_coordenadas.setStyleSheet("font-size: 14px;")
         layout.addWidget(self.lbl_coordenadas)
 
-        # Estados iniciales: todos marcados
+        # ----- Configuración de checkboxes según tipo de sección -----
+        # Siempre visibles para ambos
         self.ui.checkBox_2.setChecked(True)  # Hognestad
-        self.ui.checkBox_3.setChecked(True)  # Mander
+        self.ui.checkBox_4.setChecked(True)  # Mander No Confinado
+
+        if self._tipo_seccion == "columna":
+            # Columna: sí existe Mander Confinado
+            self.ui.checkBox_3.show()
+            self.ui.checkBox_3.setChecked(True)
+        else:
+            # Viga: no existe Mander Confinado
+            self.ui.checkBox_3.setChecked(False)
+            self.ui.checkBox_3.hide()
 
         # Conexiones (replot total al cambiar)
         self.ui.checkBox_2.stateChanged.connect(self.actualizar_grafica)
         self.ui.checkBox_3.stateChanged.connect(self.actualizar_grafica)
+        self.ui.checkBox_4.stateChanged.connect(self.actualizar_grafica)
 
         # Variables para hover
         self.marker = None
@@ -101,15 +115,31 @@ class VentanaMostrarMC(QDialog):
         self.ui.btn_mostrar_tablaMC.clicked.connect(self.mostrar_tabla)
 
     def mostrar_tabla(self):
-        checks = {
-            "hognestad": self.ui.checkBox_2,
-            "mander_conf": self.ui.checkBox_3,
-        }
-        etiquetas = {
-            "hognestad": "Hognestad",
-            "mander_conf": "Mander",
-        }
-        VentanaMostrarTabla(self._series, checks, etiquetas,
+        if self._tipo_seccion == "viga":
+            checks = {
+                "hognestad": self.ui.checkBox_2,
+                "mander_no_conf": self.ui.checkBox_4,
+            }
+            etiquetas = {
+                "hognestad": "Hognestad",
+                "mander_no_conf": "Mander No Confinado",
+            }
+        else:
+            checks = {
+                "hognestad": self.ui.checkBox_2,
+                "mander_conf": self.ui.checkBox_3,
+                "mander_no_conf": self.ui.checkBox_4,
+            }
+            etiquetas = {
+                "hognestad": "Hognestad",
+                "mander_conf": "Mander Confinado",
+                "mander_no_conf": "Mander No Confinado",
+            }
+
+        VentanaMostrarTabla(
+            self._series,
+            checks,
+            etiquetas,
             titulo="Tabla de resultados Momento–Curvatura",
             subheaders=("θ", "M"),
             parent=self
@@ -118,7 +148,8 @@ class VentanaMostrarMC(QDialog):
     def _etiqueta(self, clave: str) -> str:
         return {
             "hognestad": "Hognestad",
-            "mander_conf": "Mander",
+            "mander_conf": "Mander Confinado",
+            "mander_no_conf": "Mander No Confinado",
         }.get(clave, clave)
 
     def actualizar_grafica(self):
@@ -127,7 +158,7 @@ class VentanaMostrarMC(QDialog):
         self.figure.clear()
         ax = self.figure.add_subplot(111)
 
-        # Configuración de ejes (formato científico y rejilla)
+        # Configuración de ejes
         ax.axhline(0, color='gray', linewidth=1.2, linestyle='-', alpha=0.8)
         ax.axvline(0, color='gray', linewidth=1.2, linestyle='-', alpha=0.8)
         ax.set_xlabel("Curvatura, θ (1/m)", fontsize=10)
@@ -138,7 +169,7 @@ class VentanaMostrarMC(QDialog):
         ax.tick_params(axis='both', labelsize=8)
         ax.format_coord = lambda x, y: ""
 
-        # Formateadores científicos (ajusta potencias si hace falta)
+        # Formateadores
         x_formatter = mticker.ScalarFormatter(useMathText=True)
         y_formatter = mticker.ScalarFormatter(useMathText=True)
         x_formatter.set_scientific(True)
@@ -152,11 +183,18 @@ class VentanaMostrarMC(QDialog):
         self.x_total = []
         self.y_total = []
 
-        # Qué curvas ploteamos según checkboxes
-        modelos = [
-            ("hognestad",      self.ui.checkBox_2, 'magenta'),  
-            ("mander_conf", self.ui.checkBox_3, 'blue'),  
-        ]
+        # Modelos según tipo de sección
+        if self._tipo_seccion == "viga":
+            modelos = [
+                ("hognestad", self.ui.checkBox_2, 'magenta'),
+                ("mander_no_conf", self.ui.checkBox_4, 'green'),
+            ]
+        else:
+            modelos = [
+                ("hognestad", self.ui.checkBox_2, 'magenta'),
+                ("mander_conf", self.ui.checkBox_3, 'blue'),
+                ("mander_no_conf", self.ui.checkBox_4, 'green'),
+            ]
 
         algo_dibujado = False
         for clave, checkbox, color in modelos:
@@ -164,14 +202,14 @@ class VentanaMostrarMC(QDialog):
                 datos = self._series.get(clave)
                 if datos is None:
                     continue
+
                 thetas, M = datos
-                # Garantiza arrays
                 x = np.asarray(thetas, dtype=float)
                 y = np.asarray(M, dtype=float)
-                # Plotea
+
                 ax.plot(x, y, label=self._etiqueta(clave), color=color)
                 algo_dibujado = True
-                # Acumula para hover
+
                 self.x_total.extend(x.tolist())
                 self.y_total.extend(y.tolist())
 
@@ -214,7 +252,6 @@ class VentanaMostrarMC(QDialog):
             x_curve = float(self.x_total[idx])
             y_curve = float(self.y_total[idx])
             self.marker.set_data([x_curve], [y_curve])
-            # Mantengo tu formato original en este archivo
             self.lbl_coordenadas.setText(f"θ = {x_curve:.3f}     M = {y_curve:.3f}")
         else:
             self.marker.set_data([], [])
