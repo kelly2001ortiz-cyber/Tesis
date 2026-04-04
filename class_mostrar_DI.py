@@ -5,12 +5,8 @@ from ui_mostrar_DI import Ui_mostrar_DI
 from vista_dinamica_seccion_columna import SeccionColumnaGrafico
 from class_mostrar_tabla import VentanaMostrarTabla
 
-try:
-    from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
-    from matplotlib.backends.backend_qtagg import NavigationToolbar2QT
-except Exception:
-    from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-    from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qtagg import NavigationToolbar2QT
 
 import matplotlib.pyplot as plt
 import numpy as np

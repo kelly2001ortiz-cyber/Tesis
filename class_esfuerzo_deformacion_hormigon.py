@@ -3,12 +3,12 @@
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QMessageBox
 from PySide6.QtCore import Qt
 from ui_esfuerzo_deformacion_hormigon import Ui_esfuerzo_deformacion_hormigon
-from Hognestad02 import curva_hognestad
-from Mander_HnoConfinado01 import curva_mander_no_confinado
-from Mander_HConfinado04 import mander_confinado
+#from Hognestad02 import curva_hognestad
+#rom Mander_HnoConfinado01 import curva_mander_no_confinado
+#from mader_c import mander_confinado
+from class_curvas_materiales import CurvasMateriales
 from class_mostrar_tabla import VentanaMostrarTabla
 
-# Backend Qt6 recomendado con PySide6
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
@@ -127,13 +127,12 @@ class VentanaEsfuerzoHormigon(QDialog):
             "def_max_confinada": def_max_c,
             "def_ultima_confinada": def_ult_c,
         }
-
+        
+        curvas = CurvasMateriales(datos_hormigon=self.datos_hormigon, datos_acero=self.datos_acero, datos_seccion=self.datos_seccion)
         modelos = [
-            ("Hognestad", self.ui.checkBox_2, 'magenta', lambda d: curva_hognestad(d)),
-            ("Mander No Confinado", self.ui.checkBox_3, 'blue', lambda d: curva_mander_no_confinado(d)),
-            ("Mander Confinado", self.ui.checkBox_4, 'green',
-             lambda _: mander_confinado(self.datos_hormigon, self.datos_acero, self.datos_seccion)),
-        ]
+            ("Hognestad", self.ui.checkBox_2, 'magenta', lambda: curvas.hognestad()),
+            ("Mander No Confinado", self.ui.checkBox_3, 'blue', lambda: curvas.mander_no_confinado()),
+            ("Mander Confinado", self.ui.checkBox_4, 'green', lambda: curvas.mander_confinado()),]
 
         self._series = {}
         self.x_total = []
@@ -141,7 +140,7 @@ class VentanaEsfuerzoHormigon(QDialog):
 
         for nombre, checkbox, color, funcion in modelos:
             if checkbox.isChecked():
-                x, y = funcion(datos)
+                x, y = funcion()
                 ax.plot(x, y, color=color, label=nombre)
                 self._series[nombre] = (x, y)
                 self.x_total.extend(x)

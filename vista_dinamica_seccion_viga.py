@@ -3,7 +3,7 @@ from seccion_viga_dibujar import dibujar_seccion_viga
 from validation_utils2 import parsear_numero
 
 try:
-    from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT
+    from matplotlib.backends.backend_qtagg import NavigationToolbar2QT
 except Exception:
     NavigationToolbar2QT = None
 

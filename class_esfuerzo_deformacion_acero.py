@@ -1,11 +1,12 @@
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QTableWidgetItem, QPushButton
 from ui_esfuerzo_deformacion_acero import Ui_esfuerzo_deformacion_acero
-from Park_acero import curva_acero_park
+#from Park_acero import curva_acero_park
+from class_curvas_materiales import CurvasMateriales
 from PySide6.QtCore import Qt
 from class_mostrar_tabla import VentanaMostrarTabla
 
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qtagg import NavigationToolbar2QT
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -87,7 +88,8 @@ class VentanaEsfuerzoAcero(QDialog):
         layout.addWidget(self.lbl_coordenadas)
 
         # Almacenar es y fs para el evento
-        self.fs, self.es = curva_acero_park(self.datos_acero)
+        curvas = CurvasMateriales(datos_acero=self.datos_acero)
+        self.es, self.fs = curvas.park()
         self.mostrar_grafica_interactiva_acero()
 
         # Guardar referencias para marcador y ejes

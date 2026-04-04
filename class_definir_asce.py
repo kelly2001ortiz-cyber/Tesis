@@ -13,13 +13,8 @@ from validation_utils2 import (
     corregir_y_normalizar,
 )
 
-# ========= Matplotlib embebido (Qt5/Qt6) =========
-try:
-    from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
-    from matplotlib.backends.backend_qtagg import NavigationToolbar2QT
-except Exception:
-    from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-    from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qtagg import NavigationToolbar2QT
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker

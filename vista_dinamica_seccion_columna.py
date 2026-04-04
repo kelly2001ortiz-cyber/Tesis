@@ -5,7 +5,7 @@ from validation_utils2 import parsear_numero
 
 # Intenta importar la toolbar de Matplotlib para poder ocultarla si existe
 try:
-    from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT
+    from matplotlib.backends.backend_qtagg import NavigationToolbar2QT
 except Exception:
     NavigationToolbar2QT = None
 

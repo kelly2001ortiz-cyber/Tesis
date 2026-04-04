@@ -105,11 +105,25 @@ def resultantes(c, phi, Fu, As, fc0, ec0, esp, fy, fsu, Es, ey, esh, esu, Ec, P)
 
 # Funcion para encontrar la distancia al eje neutro
 def momrot(c_min, c_max, phi, Fu, As, tol, fc0, ec0, esp,
-           fy, fsu, Es, ey, esh, esu, Ec, P, h, c_prev):
+           fy, fsu, Es, ey, esh, esu, Ec, P, h, c_prev, phi_prev):
 
     def N_equilibrio(c):
         N = resultantes(c, phi, Fu, As, fc0, ec0, esp, fy, fsu, Es, ey, esh, esu, Ec, P)[0]
         return N
+
+    def es_max(c, phi):
+        _, _, e_s = resultantes_acero(As, park, c, phi, fy, fsu, Es, ey, esh, esu)
+        es_validas = e_s[abs(e_s) < esu]
+        es = np.max(abs(es_validas)) if len(es_validas) else -np.inf
+        return es
+    
+    def filtro(roots, es_prev):
+        raices = []
+        for c in roots:
+            es = es_max(c, phi)
+            if es >= 0.90*es_prev:
+                raices.append(c)
+        return raices
 
     def encontrar_raices(a, b, npts):
         c_vals = np.linspace(a, b, npts)
@@ -130,38 +144,91 @@ def momrot(c_min, c_max, phi, Fu, As, tol, fc0, ec0, esp,
     def buscar_c():
         if c_prev is None:
             return encontrar_raices(c_min, c_max, npts=100)
-
-        ventanas = [0.01*h, 0.04*h, 0.08*h, 0.15*h, 0.25*h]
+        ventanas = [0.04*h, 0.08*h, 0.10*h, 0.15*h, 0.25*h, 0.35*h]
         for dc in ventanas:
             a = max(c_min, c_prev - dc)
             b = min(c_max, c_prev + dc)
-            roots = encontrar_raices(a, b, npts=50)
-            
-            if len(roots) > 0:
-                return roots
-        return encontrar_raices(c_min, c_max, npts=100)
-
+            roots = encontrar_raices(a, b, npts=25)
+            es_prev = es_max(c_prev, phi_prev)
+            root = filtro(roots, es_prev)
+            if root:
+                return root
+        return encontrar_raices(c_min, c_max, npts=120)
+    
     c_posibles = buscar_c()
     if not c_posibles:
         return None, None
+
     c = c_posibles[0] if c_prev is None else min(c_posibles, key=lambda x: abs(x - c_prev))
     M = resultantes(c, phi, Fu, As, fc0, ec0, esp, fy, fsu, Es, ey, esh, esu, Ec, P)[1]
     return M, c
 
 # Funcion para obtener el doagrama momento curvatura
-def diagrama_MC(Fu, As, h, tol, phif, m, fc0, ec0, esp, fy, fsu, Es, ey, esh, esu, Ec, P):
-    phi = np.linspace(0, phif, m)
-    M = np.zeros(m)
-    c_prev = None
-    
-    for i in range(1, m):
-        Mi, ci = momrot(0, h/2, phi[i], Fu, As, 
-            tol, fc0, ec0, esp, fy, fsu, Es, ey, esh, esu, Ec, P, h, c_prev)
-        if Mi is None:
-            break
-        M[i], c_prev = Mi, ci
+def diagrama_MC(Fu, As, h, tol, fc0, ec0, esp, fy, fsu, Es, ey, esh, esu, Ec, P):
+    dphi_min, dphi_max = 2e-8, 5e-5
+    phi_ini, dphi_ini = 2e-5, 1e-6
+    phi_vals = [0.0]
+    M_vals = [0.0]
+    c_vals = [0.0]
 
-    return M, phi
+    phi = phi_ini
+    dphi = dphi_ini
+    c_min = -h/2
+    c_max = h/2
+    c_prev = None
+    phi_prev = None
+    Mmax = 0.0
+    post_pico = False
+    pts_extra = None
+    n_pts_extra = 4
+
+    for _ in range(1000):
+        Mi, ci = momrot(c_min, c_max, phi, Fu, As, tol, fc0, ec0, esp, fy, fsu, Es, ey, esh, esu, Ec,
+                        P, h, c_prev, phi_prev)
+
+        # no hay solución de equilibrio: falla numérica/física
+        # si falla, probar reduciendo paso antes de salir
+        if Mi is None:
+            if dphi > dphi_min:
+                dphi = max(0.8*dphi, dphi_min)
+                phi += dphi
+                continue
+            break
+
+        Mi = -Mi
+
+        # guardar resultados
+        phi_vals.append(phi)
+        M_vals.append(Mi)
+        c_vals.append(ci)
+        
+        # actualizar momento maximo
+        if Mi > Mmax:
+            Mmax = Mi
+        elif Mi < 0.95*Mmax:
+            post_pico = True
+
+        # control post-pico
+        if post_pico and Mi < 0.7*Mmax:
+            dphi = max(0.8*dphi, dphi_min)
+            if pts_extra is None:
+                pts_extra = n_pts_extra
+            pts_extra -= 1
+            if pts_extra < 0:
+                break
+            
+        # adaptacion del paso
+        if len(M_vals) >= 2:
+            dM = abs(M_vals[-1] - M_vals[-2]) / max(abs(Mmax), 1e-6)
+            if dM > 0.05:
+                dphi = max(0.5*dphi, dphi_min)
+            elif dM < 0.01:
+                dphi = min(1.2*dphi, dphi_max)
+
+        c_prev = ci
+        phi_prev = phi
+        phi += dphi
+    return np.array(M_vals, dtype=float), np.array(phi_vals, dtype=float)
 
 def ejecutar_mc_mander_no_confinado_columnaY (datos_hormigon, datos_acero, datos_seccion, datos_fibras):
     fc0 = float(datos_hormigon.get("esfuerzo_fc"))
@@ -190,11 +257,9 @@ def ejecutar_mc_mander_no_confinado_columnaY (datos_hormigon, datos_acero, datos
     ny = int(float(datos_fibras.get("fibras_y")))
 
     tol = 1e-5
-    phif = 2/1000
-    m = 100
     
     As = barras_columna(h, r, de, Nb1, Nb2, d_corner, d_edge)
     Fu = malla(b, h, r, de, ny)
-    M, phi = diagrama_MC(Fu, As, h, tol, phif, m, fc0, ec0, esp, fy, fsu, Es, ey, esh, esu, Ec, P)
+    M, phi = diagrama_MC(Fu, As, h, tol, fc0, ec0, esp, fy, fsu, Es, ey, esh, esu, Ec, P)
     
-    return -M/10**5, phi*100
+    return M/10**5, phi*100
