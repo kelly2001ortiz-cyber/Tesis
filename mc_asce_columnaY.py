@@ -147,11 +147,26 @@ def calcular_respuesta_seccion(
     cury = phy_y
     curu = cury + rotu / Lp
     curR = cury + rotR / Lp
+    #curu = cury + (rotu - roty) / Lp
+    #curR = cury + (rotR - roty) / Lp
     Curvatura = np.array([0.0, cury, curu, curu + 0.1 * (curR - curu), curR], dtype=float)
     thetas = np.linspace(Curvatura.min(), Curvatura.max(), n_puntos)
     M = np.interp(thetas, Curvatura, Momento)
 
-    return M, thetas, Mr, rots
+    rigidez = My / cury if cury != 0 else np.nan
+    ductilidad = curR / cury if cury != 0 else np.nan
+
+    parametros = {
+        "rigidez_asce": rigidez,
+        "m_fluencia_asce": My,
+        "curv_fluencia_asce": cury,
+        "m_maximo_asce": Mu,
+        "curv_m_max_asce": curu,
+        "m_ultimo_asce": MR,
+        "curv_ultima_asce": curR,
+        "ductilidad_asce": ductilidad,
+    }
+    return M, thetas, Mr, rots, parametros
 
 def ejecutar_mc_asce_columnaY(datos_hormigon, datos_acero, datos_seccion, datos_asce):
     fc = float(datos_hormigon.get("esfuerzo_fc"))
@@ -174,11 +189,11 @@ def ejecutar_mc_asce_columnaY(datos_hormigon, datos_acero, datos_seccion, datos_
     P0 = float(datos_seccion.get("disenar_columna_axial")) / 1000.0  # T
     Long = float(datos_asce.get("long_viga_asce"))
 
-    M, thetas, Mr, rots = calcular_respuesta_seccion(
+    M, thetas, Mr, rots, parametros = calcular_respuesta_seccion(
         fc, fy, Ec, b, h, rec, d_est, s_est,
         d_long_general, d_long_esquina,
         n_var_x, n_var_y, ram_x, ram_y,
         ey, ec0, ecu, Long, P0,
         n_puntos=100)
 
-    return M, thetas, Mr, rots
+    return M, thetas, Mr, rots, parametros

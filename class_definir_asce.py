@@ -55,7 +55,12 @@ class VentanaDefinirASCE(QDialog):
     # Campos editables (para validar, snapshot y reglas de limpieza)
     _CAMPOS_EDITABLES = (
         "def_max_asce", "def_ultima_asce", "def_fluencia_asce", "axial_columna_asce",
-        "long_viga_asce",
+        "long_viga_asce", "corte_viga_asce",
+    )
+
+    _CAMPOS_RESULTADO = (
+        "rigidez_asce", "m_fluencia_asce", "curv_fluencia_asce", "m_maximo_asce", "curv_m_max_asce",
+        "m_ultimo_asce", "curv_ultima_asce", "ductilidad_asce",
     )
 
     def __init__(self, seccion_actual: str, datos_iniciales: Optional[dict] = None, parent=None):
@@ -135,6 +140,8 @@ class VentanaDefinirASCE(QDialog):
         self._hidratando = True
         self._refrescar_campos_materiales_desde_dicts()  # 1) material -> _asce_data
         self._cargar_datos(self._asce_data)              # 2) _asce_data -> UI
+        if hasattr(self.ui, "corte_viga_asce"):
+            self._corte_viga_editado_manualmente = bool(self.ui.corte_viga_asce.text().strip())
         self._snapshot_ui = self._obtener_datos()        # 3) snapshot
 
         # 4) checkBox_curvatura gobierna groupBox_3
@@ -190,17 +197,41 @@ class VentanaDefinirASCE(QDialog):
             pass
 
     def _obtener_datos(self) -> dict:
+        claves = self._CAMPOS_EDITABLES + self._CAMPOS_RESULTADO
         return {
             k: getattr(self.ui, k).text().strip()
-            for k in self._CAMPOS_EDITABLES
+            for k in claves
             if hasattr(self.ui, k)
         }
-    
+    def _set_lineedit_text(self, nombre: str, valor, fmt: str = ".6g"):
+        if not hasattr(self.ui, nombre):
+            return
+        widget = getattr(self.ui, nombre)
+        try:
+            if valor is None:
+                widget.setText("")
+            else:
+                widget.setText(format(float(valor), fmt))
+        except Exception:
+            widget.setText(str(valor))
+
+    def _llenar_parametros_asce(self, parametros: dict):
+        if not isinstance(parametros, dict):
+            return
+
+        for nombre in self._CAMPOS_RESULTADO:
+            if nombre in parametros:
+                self._set_lineedit_text(nombre, parametros.get(nombre))
+
+        # corte_viga_asce solo se sobreescribe si no ha sido editado manualmente por el usuario
+        if "corte_viga_asce_calculado" in parametros and not self._corte_viga_editado_manualmente:
+            self._set_lineedit_text("corte_viga_asce", parametros["corte_viga_asce_calculado"])
+        
     # ----------------- Carga / snapshot -----------------
     def _cargar_datos(self, d: dict):
         if not isinstance(d, dict):
             return
-        for key in self._CAMPOS_EDITABLES:
+        for key in (self._CAMPOS_EDITABLES + self._CAMPOS_RESULTADO):
             if key in d and hasattr(self.ui, key):
                 getattr(self.ui, key).setText(str(d.get(key, "")))
 
@@ -247,6 +278,10 @@ class VentanaDefinirASCE(QDialog):
 
         if key:
             self._snapshot_ui[key] = self._valor_lineedit(line_edit)
+        
+        if key == "corte_viga_asce":
+            texto = self._valor_lineedit(line_edit)
+            self._corte_viga_editado_manualmente = bool(texto)
 
     def _normalizar_y_actualizar(self, line_edit):
         if self._hidratando:
@@ -264,7 +299,47 @@ class VentanaDefinirASCE(QDialog):
         self._post_edicion_lineedit(line_edit)
         if key:
             self._snapshot_ui[key] = self._valor_lineedit(line_edit)
+        
+        if key == "corte_viga_asce":
+            texto = self._valor_lineedit(line_edit)
+            self._corte_viga_editado_manualmente = bool(texto)
+            
+    def _autocompletar_corte_viga_si_aplica(self):
+        try:
+            tipo = str(getattr(self, "_tipo_seccion", "")).strip().lower()
+            if tipo != "viga":
+                return
+            if self._corte_viga_editado_manualmente:
+                return
 
+            calc = getattr(self, "_calc_asce", None)
+            if calc is None:
+                return
+
+            p = self._paquete_datos()
+            datos_hormigon = p.get("datos_hormigon", {}) or {}
+            datos_acero = p.get("datos_acero", {}) or {}
+            datos_seccion = p.get("datos_seccion", {}) or {}
+            datos_asce = {
+                "def_max_asce": p.get("def_max_asce"),
+                "def_ultima_asce": p.get("def_ultima_asce"),
+                "def_fluencia_asce": p.get("def_fluencia_asce"),
+                "axial_columna_asce": p.get("axial_columna_asce"),
+                "long_viga_asce": p.get("long_viga_asce"),
+                "corte_viga_asce": p.get("corte_viga_asce"),
+            }
+
+            series = calc.calcular("Viga", "", datos_hormigon, datos_acero, datos_seccion, datos_asce)
+            if not isinstance(series, dict):
+                return
+
+            params = series.get("parametros", {})
+            if "corte_viga_asce_calculado" in params:
+                self._set_lineedit_text("corte_viga_asce", params["corte_viga_asce_calculado"])
+                self._actualizar_asce_data()
+        except Exception:
+            pass
+    
     def _on_toggle_curvatura(self, _state):
         try:
             if hasattr(self.ui, "groupBox_3"):
@@ -287,6 +362,7 @@ class VentanaDefinirASCE(QDialog):
         else:
             self._limpiar_cuadricula(etiqueta_x)
             self._borrar_persistencia_grafica()
+        self._autocompletar_corte_viga_si_aplica()
 
     # ----------------- Empaquetado de datos para cálculo -----------------
     def _paquete_datos(self) -> dict:
@@ -492,7 +568,7 @@ class VentanaDefinirASCE(QDialog):
 
         keys_asce = [
             "def_max_asce", "def_ultima_asce", "def_fluencia_asce", "axial_columna_asce",
-            "long_viga_asce",
+            "long_viga_asce", "corte_viga_asce",
         ]
         datos_asce = {k: p.get(k) for k in keys_asce if k in p}
 
@@ -531,6 +607,8 @@ class VentanaDefinirASCE(QDialog):
         if not series or "rotacion" not in series:
             return
         self.series_asce = series
+        self._llenar_parametros_asce(series.get("parametros", {}))
+        self._actualizar_asce_data()
         x, y = series["rotacion"]
         self._dibujar_asce(x, y, "Rotación, \u03B8 (rad)", "Momento–Rotación", color=self._COLOR_ROT)
         self._grafica_actual = "rotacion"
@@ -544,6 +622,8 @@ class VentanaDefinirASCE(QDialog):
         if not series or "curvatura" not in series:
             return
         self.series_asce = series
+        self._llenar_parametros_asce(series.get("parametros", {}))
+        self._actualizar_asce_data()
         x, y = series["curvatura"]
         self._dibujar_asce(x, y, "Curvatura, \u03BA (1/m)", "Momento–Curvatura", color=self._COLOR_CURV)
         self._grafica_actual = "curvatura"

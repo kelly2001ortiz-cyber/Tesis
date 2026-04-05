@@ -19,14 +19,15 @@ class CalculadoraASCE:
         direc = self._texto(direccion)
 
         if tipo.lower() == "viga":
-            M, thetas, Mr, rots = _run_asce_viga(datos_hormigon, datos_acero, datos_seccion, datos_asce)
+            M, thetas, Mr, rots, parametros = _run_asce_viga(datos_hormigon, datos_acero, datos_seccion, datos_asce)
         else:
             if direc == "Dirección X":
-                M, thetas, Mr, rots = _run_asce_columnaX(datos_hormigon, datos_acero, datos_seccion, datos_asce)
+                M, thetas, Mr, rots, parametros = _run_asce_columnaX(datos_hormigon, datos_acero, datos_seccion, datos_asce)
             else:
-                M, thetas, Mr, rots = _run_asce_columnaY(datos_hormigon, datos_acero, datos_seccion, datos_asce)
+                M, thetas, Mr, rots, parametros = _run_asce_columnaY(datos_hormigon, datos_acero, datos_seccion, datos_asce)
 
         return {
             "rotacion":  (np.asarray(rots,   float), np.asarray(Mr, float)),
             "curvatura": (np.asarray(thetas, float), np.asarray(M,  float)),
+            "parametros": parametros,
         }

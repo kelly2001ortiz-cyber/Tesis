@@ -92,7 +92,7 @@ def calcular_cortante_diseno_desde_momentos(Mi, Mj, Long):
 def calcular_respuesta_seccion(
     fc, fy, Ec, b, h, rec, d_est, s_est,
     d_var_sup, n_var_sup, d_var_inf, n_var_inf,
-    ey, ec0, ecu, Long, P0=0, n_puntos=100):
+    ey, ec0, ecu, Long, P0=0, n_puntos=100, V_usuario=None):
 
     #Cálculos iniciales
     d = h - rec - d_est - (d_var_sup / 10)/2           # cm
@@ -125,15 +125,19 @@ def calcular_respuesta_seccion(
 
     # Cortante de diseño calculado
     V_calc = calcular_cortante_diseno_desde_momentos(Mi, Mj, Long)
+    if V_usuario is not None and V_usuario > 0:
+        V_diseno = V_usuario
+    else:
+        V_diseno = V_calc
 
     # Clasificación del refuerzo transversal (Confinado / NoConfinado)
     Vs = Av * fy * d / s_est
-    confinado = (s_est <= d / 3) and (Vs >= 0.75 * V_calc)
+    confinado = (s_est <= d / 3) and (Vs >= 0.75 * V_diseno)
 
     # Cortante normalizado para ingresar a la tabla de parámetros de modelado
     bw = b / 100.0                 # cm -> m
     d_m = d / 100.0                # cm -> m
-    v_norma = 1.1926 * (V_calc / (bw * d_m * np.sqrt(fc)))
+    v_norma = 1.1926 * (V_diseno / (bw * d_m * np.sqrt(fc)))
 
     # Parámetros ASCE 41-17 para vigas controladas por flexión
     a, b_par, c = obtener_parametros_modelado_viga_asce41_17(
@@ -154,6 +158,8 @@ def calcular_respuesta_seccion(
     cury = phy_y                   # Curvatura en el punto de fluencia
     curu = cury + rotu / Lp        # Curvatura última
     curR = cury + rotR / Lp        # Curvatura residual
+    #curu = cury + (rotu - roty) / Lp
+    #curR = cury + (rotR - roty) / Lp
     Curvatura = np.array([0, cury, curu, curu + ((curR - curu) * 0.1), curR], dtype=float)
 
     # Interpolación lineal a n_puntos Curvatura
@@ -163,8 +169,24 @@ def calcular_respuesta_seccion(
     # Interpolación lineal a n_puntos Rotacion
     rots = np.linspace(Rotacion.min(), Rotacion.max(), n_puntos)
     Mr = np.interp(rots, Rotacion, Momento)
+    
+    rigidez = My / cury if cury != 0 else np.nan
+    ductilidad = curR / cury if cury != 0 else np.nan
 
-    return M, thetas, Mr, rots
+    parametros = {
+        "rigidez_asce": rigidez,
+        "m_fluencia_asce": My,
+        "curv_fluencia_asce": cury,
+        "m_maximo_asce": Mu,
+        "curv_m_max_asce": curu,
+        "m_ultimo_asce": MR,
+        "curv_ultima_asce": curR,
+        "ductilidad_asce": ductilidad,
+        "corte_viga_asce": V_diseno,
+        "corte_viga_asce_calculado": V_calc,
+    }
+
+    return M, thetas, Mr, rots, parametros
 
 def ejecutar_mc_asce_viga(datos_hormigon, datos_acero, datos_seccion, datos_asce):
     fc = float(datos_hormigon.get("esfuerzo_fc"))
@@ -183,9 +205,16 @@ def ejecutar_mc_asce_viga(datos_hormigon, datos_acero, datos_seccion, datos_asce
     d_var_sup = float(datos_seccion.get("disenar_viga_diametro_superior"))
     s_est = float(datos_seccion.get("disenar_viga_espaciamiento"))
     Long = float(datos_asce.get("long_viga_asce"))
-
-    M, thetas, Mr, rots = calcular_respuesta_seccion(
+    
+    corte_viga_asce = datos_asce.get("corte_viga_asce", "")
+    try:
+        V_usuario = float(corte_viga_asce) if str(corte_viga_asce).strip() != "" else None
+    except Exception:
+        V_usuario = None
+        
+    M, thetas, Mr, rots, parametros = calcular_respuesta_seccion(
         fc, fy, Ec, b, h, rec, d_est, s_est,
         d_var_sup, n_var_sup, d_var_inf, n_var_inf,
-        ey, ec0, ecu, Long, P0=0, n_puntos=100)
-    return M, thetas, Mr, rots
+        ey, ec0, ecu, Long, P0=0, n_puntos=100, V_usuario=V_usuario)
+    
+    return M, thetas, Mr, rots, parametros
