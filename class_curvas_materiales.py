@@ -35,12 +35,13 @@ class CurvasMateriales:
 # Curva esfeurzo-deformaccion de Hornestad
     def hognestad(self, n=100):
         fc0 = self._f(self.datos_hormigon, "esfuerzo_fc")
+        Ec = self._f(self.datos_hormigon, "modulo_Ec")
         ec0 = self._f(self.datos_hormigon, "def_max_sin_confinar")
         esp = self._f(self.datos_hormigon, "def_ultima_sin_confinar")
 
         ec = np.linspace(-esp, 0.0, n)
         ec = self._merge(ec, [-esp, -ec0, 0.0])
-        fc = modelos.hognestad(ec, fc0, ec0, esp)
+        fc = modelos.hognestad(ec, fc0, ec0, esp, Ec)
         return -ec, -fc
 
     # Curva esfeurzo-deformaccion de Mander no confinado

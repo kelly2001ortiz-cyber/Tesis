@@ -21,8 +21,7 @@ from seccion_viga_controller import SeccionVigaController
 from vista_dinamica_seccion_viga import SeccionVigaGrafico
 from class_definir_asce import VentanaDefinirASCE
 from class_calcular_asce import CalculadoraASCE
-from calculo_mc_service import CalculadoraMomentoCurvatura
-from calculo_mc_servicev import CalculadoraMomentoCurvaturaV
+from momento_curvatura import calcular_series_mc
 from mostrar_mc_dialog import VentanaMostrarMC
 from class_mostrar_DI import VentanaMostrarDI
 from class_mostrar_fibras import class_mostrar_fibras
@@ -59,8 +58,6 @@ class VentanaPrincipal(QMainWindow):
         # ====== Ventanas auxiliares ======
         self.ventana_ayuda = VentanaAyuda()
 
-        self.calc_mc = CalculadoraMomentoCurvatura()
-        self.calc_mcv = CalculadoraMomentoCurvaturaV()
         # Resultados (se reemplazan en cada click a Calcular)
         self.mc_matriz = None   # np.ndarray columnas: [θ_Hog, M_Hog, θ_Mu, M_Mu, θ_Mc, M_Mc]
         self.mc_series = {}     # dict con series por modelo
@@ -633,17 +630,22 @@ class VentanaPrincipal(QMainWindow):
 
     def actualizar_seccion_columna_data(self, datos):
         self.seccion_columna_data = datos.copy()
-        mc_matriz, mc_series, di_matriz, di_series = self.calc_mc.ejecutar(
-            self.material_hormigon_data,
-            self.material_acero_data,
-            self.seccion_columna_data,
-            self.capas_fibras_data,
-            self.ui.direccion_analisis,
+
+        direccion_txt = self.ui.direccion_analisis.currentText().strip().lower()
+        eje = "x" if direccion_txt.endswith("x") else "y"
+
+        self.mc_series = calcular_series_mc(
+            datos_hormigon=self.material_hormigon_data,
+            datos_acero=self.material_acero_data,
+            datos_seccion=self.seccion_columna_data,
+            datos_fibras=self.capas_fibras_data,
+            tipo_seccion="columna",
+            eje=eje,
         )
-        self.mc_matriz = mc_matriz
-        self.mc_series = mc_series
-        self.di_matriz = di_matriz
-        self.di_series = di_series
+
+        self.mc_matriz = None
+        self.di_matriz = None
+        self.di_series = {}
 
     @Slot()
     def mostrar_viga(self):
@@ -678,14 +680,16 @@ class VentanaPrincipal(QMainWindow):
     def actualizar_seccion_viga_data(self, datos):
         self.seccion_viga_data = datos.copy()
 
-        mc_matriz, mc_series = self.calc_mcv.ejecutar(
-            self.material_hormigon_data,
-            self.material_acero_data,
-            self.seccion_viga_data,
-            self.capas_fibras_data,
+        self.mc_series = calcular_series_mc(
+            datos_hormigon=self.material_hormigon_data,
+            datos_acero=self.material_acero_data,
+            datos_seccion=self.seccion_viga_data,
+            datos_fibras=self.capas_fibras_data,
+            tipo_seccion="viga",
+            eje="x",
         )
-        self.mc_matriz = mc_matriz
-        self.mc_series = mc_series
+
+        self.mc_matriz = None
 
     # ---------------- Acciones de menú (Archivo) ----------------
 

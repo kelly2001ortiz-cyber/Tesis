@@ -56,7 +56,7 @@ class modelos:
         return fs
 
     @staticmethod
-    def hognestad(ec, fc0, ec0, esp):
+    def hognestad(ec, fc0, ec0, esp, Ec, datos_h=None, N=None):
         """
         Modelo de Hognestad para hormigón no confinado.
 
