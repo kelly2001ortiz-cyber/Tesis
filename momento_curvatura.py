@@ -2,6 +2,7 @@ import numpy as np
 from scipy.optimize import root_scalar
 from materiales import modelos
 from seccion import utilidades
+from diagrama_interaccion import calcular_series_di
 
 park = modelos.park
 hognestad = modelos.hognestad
@@ -413,3 +414,41 @@ def calcular_series_mc(
         )[:2]
 
     return series
+
+def calcular_resultados_seccion(
+    datos_hormigon,
+    datos_acero,
+    datos_seccion,
+    datos_fibras,
+    tipo_seccion,
+    eje,
+):
+    tipo = tipo_seccion.strip().lower()
+
+    mc_series = calcular_series_mc(
+        datos_hormigon=datos_hormigon,
+        datos_acero=datos_acero,
+        datos_seccion=datos_seccion,
+        datos_fibras=datos_fibras,
+        tipo_seccion=tipo,
+        eje=eje,
+    )
+
+    resultados = {
+        "mc_matriz": None,
+        "mc_series": mc_series,
+        "di_matriz": None,
+        "di_series": {},
+    }
+
+    if tipo == "columna":
+        di_matriz, di_series = calcular_series_di(
+            datos_hormigon=datos_hormigon,
+            datos_acero=datos_acero,
+            datos_seccion=datos_seccion,
+            eje=eje,
+        )
+        resultados["di_matriz"] = di_matriz
+        resultados["di_series"] = di_series
+
+    return resultados

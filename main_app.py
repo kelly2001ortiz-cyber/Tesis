@@ -21,7 +21,7 @@ from seccion_viga_controller import SeccionVigaController
 from vista_dinamica_seccion_viga import SeccionVigaGrafico
 from class_definir_asce import VentanaDefinirASCE
 from class_calcular_asce import CalculadoraASCE
-from momento_curvatura import calcular_series_mc
+from momento_curvatura import calcular_resultados_seccion
 from mostrar_mc_dialog import VentanaMostrarMC
 from class_mostrar_DI import VentanaMostrarDI
 from class_mostrar_fibras import class_mostrar_fibras
@@ -634,7 +634,7 @@ class VentanaPrincipal(QMainWindow):
         direccion_txt = self.ui.direccion_analisis.currentText().strip().lower()
         eje = "x" if direccion_txt.endswith("x") else "y"
 
-        self.mc_series = calcular_series_mc(
+        resultados = calcular_resultados_seccion(
             datos_hormigon=self.material_hormigon_data,
             datos_acero=self.material_acero_data,
             datos_seccion=self.seccion_columna_data,
@@ -643,9 +643,10 @@ class VentanaPrincipal(QMainWindow):
             eje=eje,
         )
 
-        self.mc_matriz = None
-        self.di_matriz = None
-        self.di_series = {}
+        self.mc_matriz = resultados["mc_matriz"]
+        self.mc_series = resultados["mc_series"]
+        self.di_matriz = resultados["di_matriz"]
+        self.di_series = resultados["di_series"]
 
     @Slot()
     def mostrar_viga(self):
@@ -680,7 +681,7 @@ class VentanaPrincipal(QMainWindow):
     def actualizar_seccion_viga_data(self, datos):
         self.seccion_viga_data = datos.copy()
 
-        self.mc_series = calcular_series_mc(
+        resultados = calcular_resultados_seccion(
             datos_hormigon=self.material_hormigon_data,
             datos_acero=self.material_acero_data,
             datos_seccion=self.seccion_viga_data,
@@ -689,7 +690,10 @@ class VentanaPrincipal(QMainWindow):
             eje="x",
         )
 
-        self.mc_matriz = None
+        self.mc_matriz = resultados["mc_matriz"]
+        self.mc_series = resultados["mc_series"]
+        self.di_matriz = resultados["di_matriz"]
+        self.di_series = resultados["di_series"]
 
     # ---------------- Acciones de menú (Archivo) ----------------
 
