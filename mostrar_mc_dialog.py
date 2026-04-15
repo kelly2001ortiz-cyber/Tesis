@@ -6,8 +6,7 @@ from vista_dinamica_seccion_viga import SeccionVigaGrafico
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT
-
-import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 import numpy as np
 
 
@@ -55,7 +54,7 @@ class VentanaMostrarMC(QDialog):
             )
 
         # Figura y Canvas
-        self.figure = plt.figure()
+        self.figure = Figure()
         self.canvas = FigureCanvas(self.figure)
         self.toolbar = CustomToolbar(self.canvas, self)
         self.toolbar.setMaximumHeight(28)
