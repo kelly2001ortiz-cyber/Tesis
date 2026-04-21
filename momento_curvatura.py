@@ -180,28 +180,21 @@ def diagrama_MC(cover, core, As, tol, h, fc0, ec0, esp, Ec, fy, fsu, Es, ey, esh
     Mmax = 0.0
     post_pico = False
     pts_extra = None
-    n_pts_extra = 10  # Aumentado de 4 a 10 para garantizar más puntos post-pico
-    fallos_consecutivos = 0
-    max_fallos = 50  # Límite de fallos consecutivos antes de reducir paso más agresivamente
+    n_pts_extra = 4
 
-    for _ in range(2000):  # Aumentado de 1000 a 2000 para más iteraciones
+    for _ in range(1000):
         Mi, ci = momrot(c_min, c_max, phi, cover, core, As, tol, h, fc0, ec0, esp, Ec,
                         fy, fsu, Es, ey, esh, esu, P, datos_h, sg_cover, sg_core, c_prev, phi_prev)
 
         # No hay solucion de equilibrio: falla numerica/fisica.
         # Si falla, probar reduciendo paso antes de salir.
         if Mi is None:
-            fallos_consecutivos += 1
-            if fallos_consecutivos > max_fallos:
-                # Si hay demasiados fallos, salir
-                break
             if dphi > dphi_min:
-                dphi = max(0.50 * dphi, dphi_min)  # Reducción más agresiva
+                dphi = max(0.80 * dphi, dphi_min)
                 continue
             break
 
         Mi = -Mi
-        fallos_consecutivos = 0  # Reiniciar contador de fallos
 
         # Guardar resultados
         phi_vals.append(phi)
