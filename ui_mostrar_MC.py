@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'mostrar_MC - copiaVpTOos.ui'
+## Form generated from reading UI file 'mostrar_MC - copiaPfoGSu.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.4.3
 ##
@@ -70,6 +70,9 @@ class Ui_mostrar_MC(object):
         self.checkBox_3 = QCheckBox(self.groupBox_16)
         self.checkBox_3.setObjectName(u"checkBox_3")
         self.checkBox_3.setGeometry(QRect(40, 150, 141, 20))
+        self.btn_mostrar_parmetros = QPushButton(mostrar_MC)
+        self.btn_mostrar_parmetros.setObjectName(u"btn_mostrar_parmetros")
+        self.btn_mostrar_parmetros.setGeometry(QRect(130, 210, 161, 24))
 
         self.retranslateUi(mostrar_MC)
 
@@ -87,5 +90,6 @@ class Ui_mostrar_MC(object):
         self.checkBox_2.setText(QCoreApplication.translate("mostrar_MC", u"Hognestad", None))
         self.checkBox_4.setText(QCoreApplication.translate("mostrar_MC", u"Mander No Confinado", None))
         self.checkBox_3.setText(QCoreApplication.translate("mostrar_MC", u"Mander Confinado", None))
+        self.btn_mostrar_parmetros.setText(QCoreApplication.translate("mostrar_MC", u"Par\u00e1metros Caracter\u00edsticos", None))
     # retranslateUi
 

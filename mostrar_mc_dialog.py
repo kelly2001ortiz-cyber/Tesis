@@ -9,6 +9,7 @@ from matplotlib.backends.backend_qtagg import NavigationToolbar2QT
 from matplotlib.figure import Figure
 import numpy as np
 
+from PySide6.QtWidgets import (QDialog, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QHeaderView, QPushButton)
 
 class CustomToolbar(NavigationToolbar2QT):
     # Igual que tu ejemplo: Home, Back, Forward, Pan, Zoom, Save
@@ -21,16 +22,73 @@ class CustomToolbar(NavigationToolbar2QT):
         ('Save', 'Save the figure', 'filesave', 'save_figure'),
     ]
 
+class VentanaMostrarParametrosMC(QDialog):
+    def __init__(self, parametros, checks, etiquetas, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Parámetros Característicos")
+        self.resize(820, 320)
+
+        layout = QVBoxLayout(self)
+
+        # Modelos activos
+        modelos_visibles = [k for k, chk in checks.items() if chk.isChecked() and k in parametros]
+
+        tabla = QTableWidget(self)
+        tabla.setRowCount(8)
+        tabla.setColumnCount(1 + len(modelos_visibles))
+
+        headers = ["Parámetro"] + [etiquetas[k] for k in modelos_visibles]
+        tabla.setHorizontalHeaderLabels(headers)
+
+        filas = [
+            ("Rigidez inicial, Ki (T-m/(1/m))", "rigidez_inicial"),
+            ("Curvatura de fluencia, φy (1/m)", ("punto_fluencia", "phi")),
+            ("Momento de fluencia, My (T-m)", ("punto_fluencia", "M")),
+            ("Curvatura máxima, φmax (1/m)", ("punto_maximo", "phi")),
+            ("Momento máximo, Mmax (T-m)", ("punto_maximo", "M")),
+            ("Curvatura de falla, φf (1/m)", ("punto_falla", "phi")),
+            ("Momento de falla, Mf (T-m)", ("punto_falla", "M")),
+            ("Ductilidad, μφ (-)", "ductilidad_curvatura"),
+        ]
+
+        for i, (titulo, clave) in enumerate(filas):
+            tabla.setItem(i, 0, QTableWidgetItem(titulo))
+
+            for j, modelo in enumerate(modelos_visibles, start=1):
+                datos = parametros.get(modelo, {})
+
+                if isinstance(clave, tuple):
+                    valor = datos.get(clave[0], {}).get(clave[1], None)
+                else:
+                    valor = datos.get(clave, None)
+
+                if valor is None:
+                    txt = "-"
+                else:
+                    txt = f"{float(valor):.6g}"
+
+                tabla.setItem(i, j, QTableWidgetItem(txt))
+
+        tabla.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        tabla.verticalHeader().setVisible(False)
+        tabla.setEditTriggers(QTableWidget.NoEditTriggers)
+
+        layout.addWidget(tabla)
+
+        btn_cerrar = QPushButton("Cerrar")
+        btn_cerrar.clicked.connect(self.accept)
+        layout.addWidget(btn_cerrar)
 
 class VentanaMostrarMC(QDialog):
 
-    def __init__(self, seccion_columna_data: dict, seccion_viga_data: dict, mc_series: dict, tipo_seccion, parent=None):
+    def __init__(self, seccion_columna_data: dict, seccion_viga_data: dict, mc_series: dict, mc_parametros: dict, tipo_seccion, parent=None):
         super().__init__(parent)
         self.ui = Ui_mostrar_MC()
         self.ui.setupUi(self)
 
         # Datos
         self._series = mc_series or {}
+        self._parametros = mc_parametros or {}
         self._tipo_seccion = (tipo_seccion or "").strip().lower()
 
         # --------- Dibuja la sección ----------
@@ -107,8 +165,21 @@ class VentanaMostrarMC(QDialog):
         self.canvas.mpl_connect("motion_notify_event", self.on_mouse_move)
 
         self.ui.btn_mostrar_tablaMC.clicked.connect(self.mostrar_tabla)
+        self.ui.btn_mostrar_parmetros.clicked.connect(self.mostrar_parametros)
 
     def mostrar_tabla(self):
+        checks, etiquetas = self._checks_y_etiquetas()
+
+        VentanaMostrarTabla(
+            self._series,
+            checks,
+            etiquetas,
+            titulo="Tabla de resultados Momento–Curvatura",
+            subheaders=("θ", "M"),
+            parent=self
+        ).exec()
+
+    def _checks_y_etiquetas(self):
         if self._tipo_seccion == "viga":
             checks = {
                 "hognestad": self.ui.checkBox_2,
@@ -129,16 +200,25 @@ class VentanaMostrarMC(QDialog):
                 "mander_conf": "Mander Confinado",
                 "mander_no_conf": "Mander No Confinado",
             }
+        return checks, etiquetas
 
-        VentanaMostrarTabla(
-            self._series,
-            checks,
-            etiquetas,
-            titulo="Tabla de resultados Momento–Curvatura",
-            subheaders=("θ", "M"),
+
+    def mostrar_parametros(self):
+        checks, etiquetas = self._checks_y_etiquetas()
+
+        if not self._parametros:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Parámetros Característicos", "No existen parámetros calculados para mostrar.")
+            return
+
+        dlg = VentanaMostrarParametrosMC(
+            parametros=self._parametros,
+            checks=checks,
+            etiquetas=etiquetas,
             parent=self
-        ).exec()
-
+        )
+        dlg.exec()
+    
     def _etiqueta(self, clave: str) -> str:
         return {
             "hognestad": "Hognestad",

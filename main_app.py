@@ -61,6 +61,7 @@ class VentanaPrincipal(QMainWindow):
         # Resultados (se reemplazan en cada click a Calcular)
         self.mc_matriz = None   # np.ndarray columnas: [θ_Hog, M_Hog, θ_Mu, M_Mu, θ_Mc, M_Mc]
         self.mc_series = {}     # dict con series por modelo
+        self.mc_parametros = {}
         self.di_matriz = None   # np.ndarray (n,3): [c,  Pn,  Mn]
         self.di_series = {}     # {'phi':(x=Mn,y=Pn), 'sinphi':(x,y)}
         
@@ -299,6 +300,7 @@ class VentanaPrincipal(QMainWindow):
         # Los resultados calculados se invalidan al cargar
         self.mc_matriz = None
         self.mc_series = {}
+        self.mc_parametros = {}
         self.di_matriz = None
         self.di_series = {}
 
@@ -544,6 +546,7 @@ class VentanaPrincipal(QMainWindow):
         # 2) invalidar resultados (obliga a “Calcular” otra vez)
         self.mc_matriz = None
         self.mc_series = {}
+        self.mc_parametros = {}
         self.di_matriz = None
         self.di_series = {}
 
@@ -556,6 +559,7 @@ class VentanaPrincipal(QMainWindow):
         self.capas_fibras_data = datos.copy()
         self.mc_matriz = None
         self.mc_series = {}
+        self.mc_parametros = {}
         self.di_matriz = None
         self.di_series = {}
 
@@ -575,11 +579,10 @@ class VentanaPrincipal(QMainWindow):
         if not getattr(self, "mc_series", None):
             QMessageBox.warning(self, "Diagrama M–C", "Primero presiona Calcular para generar las curvas.")
             return
+
         texto = self.ui.seccion_analisis.currentText()
-        if texto.lower() == "columna":
-            dlg = VentanaMostrarMC(self.seccion_columna_data, self.seccion_viga_data, self.mc_series, tipo_seccion=texto.lower(), parent=self)
-        elif texto.lower() == "viga":
-            dlg = VentanaMostrarMC(self.seccion_columna_data, self.seccion_viga_data, self.mc_series, tipo_seccion=texto.lower(), parent=self)
+
+        dlg = VentanaMostrarMC(self.seccion_columna_data, self.seccion_viga_data, self.mc_series, self.mc_parametros, tipo_seccion=texto.lower(), parent=self)
         dlg.exec()
 
     # ---------------- Vistas secciones / propiedades ----------------
@@ -645,6 +648,7 @@ class VentanaPrincipal(QMainWindow):
 
         self.mc_matriz = resultados["mc_matriz"]
         self.mc_series = resultados["mc_series"]
+        self.mc_parametros = resultados.get("mc_parametros", {})
         self.di_matriz = resultados["di_matriz"]
         self.di_series = resultados["di_series"]
 
@@ -692,6 +696,7 @@ class VentanaPrincipal(QMainWindow):
 
         self.mc_matriz = resultados["mc_matriz"]
         self.mc_series = resultados["mc_series"]
+        self.mc_parametros = resultados.get("mc_parametros", {})
         self.di_matriz = resultados["di_matriz"]
         self.di_series = resultados["di_series"]
 
@@ -706,6 +711,7 @@ class VentanaPrincipal(QMainWindow):
         self._project_path = None
         self.mc_matriz = None
         self.mc_series = {}
+        self.mc_parametros = {}
         self.di_matriz = None
         self.di_series = {}
         # Refrescar UI
