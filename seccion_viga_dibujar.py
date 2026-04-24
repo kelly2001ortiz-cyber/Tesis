@@ -1,4 +1,6 @@
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')  # Usar backend no interactivo para evitar advertencias de memoria
 import matplotlib.pyplot as plt
 from matplotlib.collections import PatchCollection
 import matplotlib.patches as patches
@@ -223,3 +225,13 @@ class dibujar_seccion_viga(QWidget):
         if self.highlight_artist is not None and self.highlight_artist.get_visible():
             self.highlight_artist.set_visible(False)
             self.canvas.draw_idle()
+
+    def closeEvent(self, event):
+        """Cerrar la figura al destruir el widget para liberar memoria."""
+        plt.close(self.figure)
+        super().closeEvent(event)
+
+    def close(self):
+        """Cerrar la figura explícitamente."""
+        plt.close(self.figure)
+        super().close()

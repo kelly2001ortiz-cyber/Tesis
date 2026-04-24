@@ -280,4 +280,20 @@ class modelos:
 
             return Ucc + Usc - Uco - Ush
 
-        return brentq(f, 2e-3, 5e-2)
+        # Manejo de error si brentq falla (f(a) y f(b) no tienen signos diferentes)
+        try:
+            return brentq(f, 2e-3, 5e-2)
+        except ValueError:
+            # Si falla, intentar con un rango más amplio
+            try:
+                return brentq(f, 1e-3, 1e-1)
+            except ValueError:
+                # Si aún falla, devolver un valor por defecto razonable para ecu
+                # Basado en deformaciones típicas de hormigón confinado
+                import warnings
+                warnings.warn(
+                    "No se pudo encontrar ecu mediante equilibrio energético. "
+                    "Usando valor por defecto de 0.015 (deformación última típica).",
+                    RuntimeWarning
+                )
+                return 0.015
