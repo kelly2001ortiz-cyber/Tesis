@@ -1,5 +1,5 @@
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QLabel
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtWidgets import QLabel, QMessageBox
 from babel.numbers import format_decimal
 import re
 
@@ -44,9 +44,12 @@ class ErrorFloatingLabel(QLabel):
 def validar_en_tiempo_real(line_edit, campos_invalidos, error_label, color="#FF3333"):
     texto = line_edit.text()
     valor = parsear_numero(texto)
-    # Caso especial: axial_columna_asce bloqueado en "Viga"
-    if line_edit.objectName() == "axial_columna_asce" and not line_edit.isEnabled():
-        valido = True   # siempre válido aunque sea 0
+    nombre = line_edit.objectName()
+    # Casos especiales que admiten 0
+    if nombre == "axial_columna_asce" and not line_edit.isEnabled():
+        valido = True
+    elif nombre == "disenar_columna_axial":
+        valido = valor is not None and valor >= 0
     else:
         valido = valor is not None and valor > 0
 
@@ -69,6 +72,16 @@ def mostrar_mensaje_error_flotante(line_edit, error_label, offset_x=10):
     error_label.show()
     error_label.raise_()
     error_label.campo_actual = line_edit
+
+def mostrar_mensaje_informativo_temporal(parent, titulo, texto, ms=1200):
+    msg = QMessageBox(parent)
+    msg.setIcon(QMessageBox.Information)
+    msg.setWindowTitle(titulo)
+    msg.setText(texto)
+    msg.setStandardButtons(QMessageBox.NoButton)
+    msg.show()
+    QTimer.singleShot(ms, msg.close)
+    return msg
 
 def corregir_y_normalizar(line_edit):
     texto_original = line_edit.text()

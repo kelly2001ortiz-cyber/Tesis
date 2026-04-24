@@ -3,9 +3,6 @@
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QMessageBox
 from PySide6.QtCore import Qt
 from ui_esfuerzo_deformacion_hormigon import Ui_esfuerzo_deformacion_hormigon
-#from Hognestad02 import curva_hognestad
-#rom Mander_HnoConfinado01 import curva_mander_no_confinado
-#from mader_c import mander_confinado
 from class_curvas_materiales import CurvasMateriales
 from class_mostrar_tabla import VentanaMostrarTabla
 

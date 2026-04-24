@@ -21,7 +21,8 @@ from seccion_viga_controller import SeccionVigaController
 from vista_dinamica_seccion_viga import SeccionVigaGrafico
 from class_definir_asce import VentanaDefinirASCE
 from class_calcular_asce import CalculadoraASCE
-from momento_curvatura import calcular_resultados_seccion
+#from momento_curvatura import calcular_resultados_seccion
+from momento_curvatura_parche_sap import calcular_resultados_seccion
 from mostrar_mc_dialog import VentanaMostrarMC
 from class_mostrar_DI import VentanaMostrarDI
 from class_mostrar_fibras import class_mostrar_fibras
