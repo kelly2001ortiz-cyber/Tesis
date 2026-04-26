@@ -2,7 +2,7 @@ import numpy as np
 from scipy.optimize import root_scalar
 from scipy.integrate import simpson
 
-ecu_lim = 0.05
+ecu_lim = 5e-2
 
 class modelos:
     """
@@ -166,7 +166,7 @@ class modelos:
             esp     : deformación última del hormigón no confinado
             Ec      : módulo de elasticidad del hormigón
             datos_h : tupla con:
-                      (fyh, b, h, r, Sc, de, d_corner, d_edge, Nb, NLx, NLy, ecu, fcc)
+                      (fyh, b, h, r, Sc, de, d_corner, d_edge, nb, nr_x, nr_y, ecu, fcc)
             N       : selector de salida
                       N = 1 o None -> esfuerzo del hormigón
                       N = 2        -> retorna fc, psh, Acc, pcc
@@ -175,9 +175,8 @@ class modelos:
         Retorna:
             según N
         """
-
-        fyh, b, h, r, Sc, de, d_corner, d_edge, Nb, NLx, NLy, ecu, fcc = datos_h
-
+        fyh, b, h, r, Sc, de, d_corner, d_edge, nb, nr_x, nr_y, ecu, fcc = datos_h
+        
         def fccfco(flx, fly, fc0):
             sigma1 = -min(flx, fly)
             sigma2 = -max(flx, fly)
@@ -185,10 +184,7 @@ class modelos:
             def f(sigma3):
                 sigma_oct = (sigma1 + sigma2 + sigma3) / 3
                 tau_oct_i = (((sigma1 - sigma2) ** 2 + (sigma2 - sigma3) ** 2 + (sigma3 - sigma1) ** 2) ** 0.5 ) / 3
-
                 cos_theta = (sigma1 - sigma_oct) / (2 ** 0.5 * tau_oct_i)
-                cos_theta = np.clip(cos_theta, -1, 1)
-
                 sigmap_oct = sigma_oct / fc0
 
                 T = 0.069232 - 0.661091 * sigmap_oct - 0.049350 * sigmap_oct ** 2
@@ -198,7 +194,7 @@ class modelos:
                 
                 return tau_oct_i - tau_oct_j
             
-            sol = root_scalar(f, bracket=[-5*fc0, -fc0/2], method="brentq")
+            sol = root_scalar(f, bracket=[-4*fc0, -fc0/2], method="brentq")
             return -sol.root
 
         # Dimensiones del núcleo
@@ -207,16 +203,16 @@ class modelos:
         Ss = Sc - de
 
         # Área inefectiva
-        Wx = (bc - de - 2 * d_corner - (NLx - 2) * d_edge) / (NLx - 1)
-        Wy = (dc - de - 2 * d_corner - (NLy - 2) * d_edge) / (NLy - 1)
-
-        Ainef = (2 * (NLx - 1) * (Wx ** 2) / 6) + (2 * (NLy - 1) * Wy ** 2 / 6)
+        Wx = (bc - de - 2 * d_corner - (nr_x - 2) * d_edge) / (nr_x - 1)
+        Wy = (dc - de - 2 * d_corner - (nr_y - 2) * d_edge) / (nr_y - 1)
+        
+        Ainef = (2 * (nr_x - 1) * (Wx ** 2) / 6) + (2 * (nr_y - 1) * Wy ** 2 / 6)
 
         # Área efectiva confinada
         Ae = (bc * dc - Ainef) * (1 - Ss / (2 * bc)) * (1 - Ss / (2 * dc))
 
         # Cuantía longitudinal
-        AsL = np.pi * (d_corner ** 2 + (Nb - 4) * d_edge ** 2 / 4)
+        AsL = np.pi * (d_corner ** 2 + (nb - 4) * d_edge ** 2 / 4)
         Ac = bc * dc
         pcc = AsL / Ac
         Acc = Ac * (1 - pcc)
@@ -226,8 +222,8 @@ class modelos:
 
         # Presión lateral de confinamiento
         Ash = np.pi * de ** 2 / 4
-        Ashx = NLx * Ash
-        Ashy = NLy * Ash
+        Ashx = nr_x * Ash
+        Ashy = nr_y * Ash
 
         psx = (Ashx * bc) / (Sc * bc * dc)
         psy = (Ashy * dc) / (Sc * bc * dc)
@@ -274,30 +270,31 @@ class modelos:
             fc0, ec0, esp, Ec : parámetros del hormigón
             fy, fsu, Es, ey, esh, esu : parámetros del acero transversal/longitudinal
             datos_h : tupla de datos para mander_c:
-                      (fyh, b, h, r, Sc, de, d_corner, d_edge, Nb, NLx, NLy, ecu, fcc)
+                      (fyh, b, h, r, Sc, de, d_corner, d_edge, nb, nr_x, nr_y, ecu, fcc)
 
         Retorna:
             ecu : deformación última del hormigón confinado
         """
-
-        # Hormigón no confinado
         n = 100
+        # Hormigón no confinado
         ec_uc = np.empty(n)
         ec_uc[0] = -esp
-        ec_uc[1:] = np.linspace(-2 * ec0, 0.0, n - 1)
+        ec_uc[1:] = np.linspace(-2 * ec0, 0.0, n-1)
         fc_uc = modelos.mander_u(ec_uc, fc0, ec0, esp, Ec, datos_h, 0)
         A_uc = -simpson(fc_uc, x=ec_uc)
 
         # Acero transversal
-        es_sh = np.linspace(0.0, esu, n)
+        es_sh = np.linspace(0.0, esu, n-2)
+        es_sh = np.concatenate((es_sh, [esh, ey]))
+        es_sh.sort()
         fs_sh = modelos.park(es_sh, fy, fsu, Es, ey, esh, esu)
         A_sh = simpson(fs_sh, x=es_sh)
 
-        fyh, b, h, r, Sc, de, d_corner, d_edge, Nb, NLx, NLy, _, fcc = datos_h
+        fyh, b, h, r, Sc, de, d_corner, d_edge, nb, nr_x, nr_y, _, fcc = datos_h
 
         def f(ecu):
             # actualizar datos_h con el ecu de prueba
-            datos_h_ecu = (fyh, b, h, r, Sc, de, d_corner, d_edge, Nb, NLx, NLy, ecu, fcc)
+            datos_h_ecu = (fyh, b, h, r, Sc, de, d_corner, d_edge, nb, nr_x, nr_y, ecu, fcc)
 
             # Hormigón confinado hasta ecu
             ec_cc = np.linspace(-ecu, 0.0, n)
@@ -312,7 +309,7 @@ class modelos:
             return Ucc - Uco - Ush
           
         try:
-            sol = root_scalar(f, bracket=[1e-3, 5e-2], method="brentq")
+            sol = root_scalar(f, bracket=[1e-3, ecu_lim], method="brentq")
             return sol.root
         except ValueError:
             return ecu_lim

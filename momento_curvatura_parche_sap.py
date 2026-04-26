@@ -55,49 +55,70 @@ def resultantes(c, phi, cover, core, As, fc0, ec0, esp, Ec, fy, fsu, Es, ey, esh
 
 # Funcion para encontrar la distancia al eje neutro
 def momrot(c_min, c_max, phi, cover, core, As, tol, h, fc0, ec0, esp, Ec,
-           fy, fsu, Es, ey, esh, esu, P, datos_h, sg_cover, sg_core, c_prev=None, phi_prev=None):
+           fy, fsu, Es, ey, esh, esu,
+           P, datos_h, sg_cover, sg_core, c_prev=None, phi_prev=None):
 
     def N_equilibrio(c):
-        N = resultantes(c, phi, cover, core, As, fc0, ec0, esp, Ec,
-                        fy, fsu, Es, ey, esh, esu, P, datos_h, sg_cover, sg_core)[0]
+        N = resultantes(
+            c, phi, cover, core, As,
+            fc0, ec0, esp, Ec,
+            fy, fsu, Es, ey, esh, esu,
+            P, datos_h, sg_cover, sg_core
+        )[0]
         return N
 
     def es_max(c_eval, phi_eval):
         yi = As[:, 0]
         e_s = -phi_eval * (yi - c_eval)
+
+        # Evita tomar deformaciones ya fuera del rango último del acero
         es_validas = e_s[np.abs(e_s) < esu]
-        es = np.max(abs(es_validas)) if len(es_validas) else -np.inf
+
+        if len(es_validas):
+            es = np.max(np.abs(es_validas))
+        else:
+            es = -np.inf
+
         return es
 
     def ordenar_por_continuidad(roots):
         roots = np.unique(np.asarray(roots, dtype=float)).tolist()
+
         if c_prev is None or not roots:
             return roots
+
         return sorted(roots, key=lambda x: abs(x - c_prev))
 
     def filtrar_por_continuidad(roots, es_prev):
         roots = ordenar_por_continuidad(roots)
+
         if not roots:
             return []
 
-        # Mantener continuidad de rama, pero sin bloquear la convergencia
-        # cuando la deformación de referencia deja de ser informativa.
+        # Si la deformación previa no es informativa, no filtrar
         if (not np.isfinite(es_prev)) or es_prev <= 0.0:
             return roots
 
         raices_filtradas = []
+
         for c_root in roots:
             es = es_max(c_root, phi)
+
+            # Mantiene una rama compatible con la deformación anterior
             if es >= 0.85 * es_prev:
                 raices_filtradas.append(c_root)
 
-        # Si ninguna raíz pasa el filtro heurístico, volver a priorizar
-        # únicamente la continuidad geométrica para no perder la solución.
+        # Si el filtro elimina todo, usar continuidad geométrica solamente
         return raices_filtradas if raices_filtradas else roots
 
     def encontrar_raices(a, b, npts):
         c_vals = np.linspace(a, b, npts)
-        N_vals = np.fromiter((N_equilibrio(c) for c in c_vals), dtype=float, count=npts)
+        N_vals = np.fromiter(
+            (N_equilibrio(c) for c in c_vals),
+            dtype=float,
+            count=npts
+        )
+
         roots = []
 
         idx_signo = np.flatnonzero(N_vals[:-1] * N_vals[1:] < 0.0)
@@ -112,20 +133,29 @@ def momrot(c_min, c_max, phi, cover, core, As, tol, h, fc0, ec0, esp, Ec,
 
             if abs(N1) < tol:
                 roots.append(c1)
+
             elif N1 * N2 < 0.0:
                 try:
-                    sol = root_scalar(N_equilibrio, bracket=[c1, c2], method="brentq")
+                    sol = root_scalar(
+                        N_equilibrio,
+                        bracket=[c1, c2],
+                        method="brentq"
+                    )
+
                     if sol.converged and abs(N_equilibrio(sol.root)) <= tol:
                         roots.append(sol.root)
+
                 except ValueError:
                     pass
+
         if not roots:
             return []
+
         return np.unique(np.array(roots, dtype=float)).tolist()
 
     def barrido_global():
-        # No restringir el eje neutro al espesor de la sección: con carga axial,
-        # el eje neutro puede quedar fuera y la solución sigue siendo físicamente válida.
+        # No restringir el eje neutro al espesor de la sección.
+        # Con carga axial, el eje neutro puede quedar fuera de la sección.
         rangos = [
             (c_min, c_max, 80),
             (-1.5 * h, 1.5 * h, 120),
@@ -133,51 +163,77 @@ def momrot(c_min, c_max, phi, cover, core, As, tol, h, fc0, ec0, esp, Ec,
             (-6.0 * h, 6.0 * h, 260),
             (-12.0 * h, 12.0 * h, 360),
         ]
+
         for a, b, npts in rangos:
             roots = encontrar_raices(a, b, npts=npts)
+
             if roots:
                 return ordenar_por_continuidad(roots)
+
         return []
 
     def buscar_c():
-        # Primer punto: explorar en un rango amplio para capturar soluciones con axial.
+        # Primer punto: usar barrido global para capturar raíces difíciles
         if c_prev is None:
             return barrido_global()
 
         es_prev = es_max(c_prev, phi_prev)
 
-        # Primero intentar alrededor de la raíz previa, priorizando continuidad.
-        ventanas = [0.02*h, 0.04*h, 0.08*h, 0.15*h, 0.35*h, 0.75*h, 1.50*h, 3.0*h]
+        # Buscar primero alrededor de la raíz previa
+        ventanas = [
+            0.02 * h,
+            0.04 * h,
+            0.08 * h,
+            0.15 * h,
+            0.35 * h,
+            0.75 * h,
+            1.50 * h,
+            3.00 * h,
+        ]
 
         for dc in ventanas:
             a = c_prev - dc
             b = c_prev + dc
+
             roots = encontrar_raices(a, b, npts=60)
             roots = filtrar_por_continuidad(roots, es_prev)
+
             if roots:
                 return roots
 
-        # Si falla la búsqueda local, hacer un barrido global amplio.
+        # Si falla la búsqueda local, hacer barrido global
         roots = barrido_global()
         roots = filtrar_por_continuidad(roots, es_prev)
+
         if roots:
             return roots
 
         return []
 
     c_posibles = buscar_c()
+
     if not c_posibles:
         return None, None
 
-    c = c_posibles[0] if c_prev is None else min(c_posibles, key=lambda x: abs(x - c_prev))
-    M = resultantes(c, phi, cover, core, As, fc0, ec0, esp, Ec, fy, fsu, Es, ey, esh, esu, P, datos_h, sg_cover, sg_core)[1]
+    if c_prev is None:
+        c = c_posibles[0]
+    else:
+        c = min(c_posibles, key=lambda x: abs(x - c_prev))
+
+    M = resultantes(
+        c, phi, cover, core, As,
+        fc0, ec0, esp, Ec,
+        fy, fsu, Es, ey, esh, esu,
+        P, datos_h, sg_cover, sg_core
+    )[1]
+
     return M, c
 
 # Funcion para obtener el diagrama momento-curvatura
 def diagrama_MC(cover, core, As, tol, h, fc0, ec0, esp, Ec, fy, fsu, Es, ey, esh, esu, P, datos_h, sg_cover, sg_core):
     
-    dphi_min, dphi_max = 2e-8, 5e-5
-    phi_ini, dphi_ini = 2e-5, 1e-6
+    dphi_min, dphi_max = 5.0e-7, 3.5e-5
+    phi_ini, dphi_ini = 3.5e-7, 5.0e-7
 
     phi_vals = [0.0]
     M_vals = [0.0]
@@ -185,8 +241,8 @@ def diagrama_MC(cover, core, As, tol, h, fc0, ec0, esp, Ec, fy, fsu, Es, ey, esh
 
     phi = phi_ini
     dphi = dphi_ini
-    c_min = -h / 2
-    c_max = h / 2
+    c_min = -2*h
+    c_max = 2*h
     c_prev = None
     phi_prev = None
     Mmax = 0.0
@@ -205,16 +261,18 @@ def diagrama_MC(cover, core, As, tol, h, fc0, ec0, esp, Ec, fy, fsu, Es, ey, esh
         if Mi is None:
             fallos_consecutivos += 1
             if fallos_consecutivos > max_fallos:
-                # Si hay demasiados fallos, salir
                 break
+
             if dphi > dphi_min:
-                dphi = max(0.50 * dphi, dphi_min)  # Reducción más agresiva
-                # Reintentar desde el último estado convergido, no en el mismo punto fallido.
+                dphi = max(0.50 * dphi, dphi_min)
+
                 if phi_prev is None:
                     phi = max(0.50 * phi, dphi_min)
                 else:
                     phi = phi_prev + dphi
+
                 continue
+
             break
 
         Mi = -Mi
@@ -228,7 +286,7 @@ def diagrama_MC(cover, core, As, tol, h, fc0, ec0, esp, Ec, fy, fsu, Es, ey, esh
         # Actualizar momento maximo
         if Mi > Mmax:
             Mmax = Mi
-        elif Mi < 0.90 * Mmax:
+        elif Mi < 0.80 * Mmax:
             post_pico = True
 
         # Control post-pico
@@ -722,7 +780,8 @@ def calcular_momento_curvatura(
         cover, core = malla(b, h, r, de, nf_x, nf_y, eje)
         As = barras_columna(b, h, r, de, nb_x, nb_y, d_corner, d_edge, eje)
 
-        P_real = _f(datos_seccion, "disenar_columna_axial", P)
+        P_usuario = _f(datos_seccion, "disenar_columna_axial", P)
+        P_real = - P_usuario
 
         if usa_mander_c:
             datos_h = _datos_h_mander_confinado(datos_hormigon, datos_acero, datos_seccion)
