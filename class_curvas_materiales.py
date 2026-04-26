@@ -1,5 +1,5 @@
 import numpy as np
-from materiales import modelos
+from materiales_copia import modelos
 
 class CurvasMateriales:
     def __init__(self, datos_hormigon=None, datos_acero=None, datos_seccion=None):

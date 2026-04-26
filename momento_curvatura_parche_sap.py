@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.optimize import root_scalar
-from materiales import modelos
+from materiales_copia import modelos
 from seccion import utilidades
 from diagrama_interaccion import calcular_series_di
 
@@ -359,12 +359,45 @@ def _rigidez_inicial_desde_tabla(phi, M, min_pts=4, r2_min=0.999):
 def _interp_lineal_xy(x, y, xq):
     return float(np.interp(float(xq), x, y))
 
+
+def _buscar_phi_en_rama_ascendente_por_umbral(phi, M, idx_max, fraccion=0.99):
+    """
+    Busca la primera curvatura en la rama ascendente que alcanza
+    una fracción del momento máximo.
+
+    Retorna:
+        phi_obj, M_obj, encontrado
+    """
+    phi = np.asarray(phi, dtype=float)
+    M = np.asarray(M, dtype=float)
+
+    M_max = float(M[idx_max])
+    M_obj = fraccion * M_max
+
+    if idx_max <= 0:
+        return float(phi[idx_max]), float(M[idx_max]), False
+
+    for i in range(1, idx_max + 1):
+        if M[i] >= M_obj:
+            phi1, M1 = float(phi[i - 1]), float(M[i - 1])
+            phi2, M2 = float(phi[i]), float(M[i])
+
+            if abs(M2 - M1) < 1e-14:
+                phi_obj = phi2
+            else:
+                phi_obj = phi1 + (M_obj - M1) * (phi2 - phi1) / (M2 - M1)
+
+            return float(phi_obj), float(M_obj), True
+
+    return float(phi[idx_max]), float(M[idx_max]), False
+
+
 def _buscar_punto_falla_por_resistencia(phi, M, idx_max, fraccion=0.80):
     """
-    Busca el punto de falla como el primer punto de la rama descendente
+    Busca el punto de degradación como el primer punto post-pico
     donde M <= fraccion * M_max.
 
-    Si encuentra cruce, interpola linealmente para obtener phi_f.
+    Si encuentra cruce, interpola linealmente.
     Si no encuentra cruce, usa el último punto disponible como fallback.
     """
     phi = np.asarray(phi, dtype=float)
@@ -373,19 +406,14 @@ def _buscar_punto_falla_por_resistencia(phi, M, idx_max, fraccion=0.80):
     M_max = float(M[idx_max])
     M_lim = fraccion * M_max
 
-    # Si no hay rama descendente, fallback
     if idx_max >= len(M) - 1:
         return float(phi[-1]), float(M[-1]), False
 
-    # Recorrer solo post-pico
     for i in range(idx_max + 1, len(M)):
         if M[i] <= M_lim:
-            # Si justo cayó en el punto i
             if i == idx_max + 1:
-                phi_f = float(phi[i])
-                return phi_f, float(M_lim), True
+                return float(phi[i]), float(M_lim), True
 
-            # Interpolar entre (i-1) e i
             phi1, M1 = float(phi[i - 1]), float(M[i - 1])
             phi2, M2 = float(phi[i]), float(M[i])
 
@@ -396,8 +424,28 @@ def _buscar_punto_falla_por_resistencia(phi, M, idx_max, fraccion=0.80):
 
             return float(phi_f), float(M_lim), True
 
-    # Si nunca bajó al 80% del pico
     return float(phi[-1]), float(M[-1]), False
+
+
+def _area_hasta_phi(phi, M, phi_ref):
+    """
+    Calcula el área bajo la curva M-φ hasta una curvatura phi_ref.
+    Si phi_ref cae entre dos puntos, interpola linealmente.
+    """
+    phi = np.asarray(phi, dtype=float)
+    M = np.asarray(M, dtype=float)
+
+    mask = phi < phi_ref
+    phi_area = phi[mask]
+    M_area = M[mask]
+
+    M_ref = _interp_lineal_xy(phi, M, phi_ref)
+
+    if len(phi_area) == 0 or abs(phi_area[-1] - phi_ref) > 1e-12:
+        phi_area = np.append(phi_area, phi_ref)
+        M_area = np.append(M_area, M_ref)
+
+    return float(np.trapz(M_area, phi_area))
 
 
 def extraer_parametros_caracteristicos_mc(phi, M):
@@ -406,110 +454,154 @@ def extraer_parametros_caracteristicos_mc(phi, M):
 
     Criterios adoptados:
     - rigidez inicial: pendiente de la rama inicial lineal
-    - punto de fluencia: fluencia equivalente por bilinealización
-    - punto máximo: máximo momento de la tabla
-    - punto de falla: primer punto post-pico donde M <= 0.80*Mmax
-    - ductilidad: phi_f / phi_y
+    - punto de fluencia:
+        * My por idealización bilineal
+        * phi_y = My / Ki
+    - punto máximo:
+        * Mmax = pico real
+        * phi_max = primera curvatura que alcanza 0.99*Mmax
+    - punto de falla:
+        * primer punto post-pico donde M <= 0.80*Mmax
+    - punto último:
+        * último punto de la tabla M-φ
+    - ductilidad:
+        * mu_phi = phi_u / phi_y
     """
     phi, M = _limpiar_curva_mc(phi, M)
 
     if len(phi) < 2:
         raise ValueError("No hay suficientes puntos en la tabla M-φ (mínimo 2).")
-    
-    # Si hay menos de 4 puntos, usar procedimiento simplificado
+
     usar_simplificado = len(phi) < 4
-    if usar_simplificado:
-        import warnings
-        warnings.warn(f"Curva M-φ con solo {len(phi)} puntos. Usando procedimiento simplificado para extraer parámetros.")
 
-    # Punto máximo
+    # -----------------------------
+    # Punto máximo (momento pico real)
+    # -----------------------------
     idx_max = int(np.argmax(M))
-    phi_max = float(phi[idx_max])
     M_max = float(M[idx_max])
+    phi_peak = float(phi[idx_max])
 
-    # Rigidez inicial a partir de la rama inicial
+    # Curvatura representativa del máximo:
+    # primera curvatura que alcanza 99% del pico
+    phi_max, _, _ = _buscar_phi_en_rama_ascendente_por_umbral(
+        phi, M, idx_max, fraccion=0.99
+    )
+
+    # -----------------------------
+    # Rigidez inicial
+    # -----------------------------
     try:
         K_ini = _rigidez_inicial_desde_tabla(phi[:idx_max + 1], M[:idx_max + 1])
-    except:
-        # Si falla, calcular simplemente como M_max / phi_max
-        K_ini = M_max / phi_max if phi_max > 0 else 1.0
+    except Exception:
+        K_ini = M_max / max(phi_peak, 1e-12)
 
-    # Punto final del análisis (solo informativo)
-    phi_fin = float(phi[-1])
-    M_fin = float(M[-1])
+    # -----------------------------
+    # Punto último = último punto de la tabla
+    # -----------------------------
+    phi_u = float(phi[-1])
+    M_u = float(M[-1])
 
-    # Punto de falla por caída al 80% de la resistencia máxima
+    # -----------------------------
+    # Punto de falla = 80% post-pico
+    # -----------------------------
     try:
         phi_f, M_f, hubo_cruce_80 = _buscar_punto_falla_por_resistencia(
             phi, M, idx_max, fraccion=0.80
         )
-    except:
-        # Fallback: usar el último punto como falla
-        phi_f = float(phi[-1])
-        M_f = float(M[-1])
-        hubo_cruce_80 = False
+    except Exception:
+        phi_f, M_f, hubo_cruce_80 = phi_u, M_u, False
 
-    # Área bajo la curva hasta el punto de falla
-    phi_area = phi[phi <= phi_f]
-    M_area = M[:len(phi_area)]
-
-    # Si phi_f quedó entre dos puntos, agregarlo por interpolación
-    if len(phi_area) == 0 or abs(phi_area[-1] - phi_f) > 1e-12:
-        M_phi_f = _interp_lineal_xy(phi, M, phi_f)
-        phi_area = np.append(phi_area, phi_f)
-        M_area = np.append(M_area, M_phi_f)
-
-    A = float(np.trapz(M_area, phi_area))
-
-    # Fluencia equivalente por idealización bilineal
-    if usar_simplificado:
-        # Para curvas con pocos puntos, usar valor conservador
-        phi_y = phi_max * 0.50  # 50% del punto máximo
+    # -----------------------------
+    # Punto de fluencia
+    #   1) My por idealización bilineal
+    #   2) phi_y = My / Ki
+    # -----------------------------
+    if usar_simplificado or K_ini <= 1e-12:
+        M_y = 0.60 * M_max
     else:
-        denom = K_ini * phi_f - M_f
+        # Para estimar My usamos como referencia el punto de falla (80% post-pico).
+        # Si no existe cruce, usamos el punto último como fallback.
+        phi_ref = phi_f if hubo_cruce_80 else phi_u
+        M_ref = M_f if hubo_cruce_80 else M_u
+
+        A_ref = _area_hasta_phi(phi, M, phi_ref)
+
+        # Idealización bilineal con phi_y = My / Ki:
+        # 2A = My*(phi_ref - M_ref/Ki) + M_ref*phi_ref
+        denom = phi_ref - (M_ref / K_ini)
+
         if denom <= 1e-12:
-            phi_y = phi_max * 0.60
+            M_y = 0.60 * M_max
         else:
-            phi_y = (2.0 * A - M_f * phi_f) / denom
+            M_y = (2.0 * A_ref - M_ref * phi_ref) / denom
 
-    phi_y = float(np.clip(phi_y, 1e-12, min(phi_f * 0.999, phi_max)))
-    M_y = _interp_lineal_xy(phi, M, phi_y)
+    # Acotar My sin alterar el criterio principal
+    M_y = float(np.clip(M_y, 1e-12, max(1e-12, 0.999 * M_max)))
 
+    # Curvatura de fluencia a partir de Ki y My
+    phi_y = float(M_y / K_ini) if K_ini > 1e-12 else float(0.60 * phi_max)
+
+    # Limitar phi_y para que quede antes del máximo y del último punto,
+    # pero SIN modificar M_y
+    phi_lim = min(phi_max * 0.999, phi_u * 0.999) if phi_u > 0 else phi_max * 0.999
+    phi_lim = max(phi_lim, 1e-12)
+
+    if phi_y <= 0:
+        phi_y = 1e-12
+    elif phi_y > phi_lim:
+        phi_y = phi_lim
+
+    # -----------------------------
     # Ductilidad por curvatura
-    mu_phi = float(phi_f / phi_y) if phi_y > 0 else np.inf
-
-    if hubo_cruce_80:
-        criterio_falla = (
-            "Punto de falla definido como el primer punto post-pico "
-            "en que la resistencia desciende al 80% del momento máximo."
-        )
-    else:
-        if usar_simplificado:
-            criterio_falla = (
-                "Curva con pocos puntos: se adoptó el último punto disponible "
-                "como punto de falla (fallback simplificado)."
-            )
-        else:
-            criterio_falla = (
-                "La curva no descendió hasta el 80% del momento máximo; "
-                "se adoptó el último punto disponible del análisis como fallback."
-            )
+    #   usa el punto último, no el punto de falla
+    # -----------------------------
+    mu_phi = float(phi_u / phi_y) if phi_y > 0 else np.inf
 
     return {
         "rigidez_inicial": K_ini,
+
+        # Fluencia
         "punto_fluencia": {"phi": phi_y, "M": M_y},
+
+        # Máximo
         "punto_maximo": {"phi": phi_max, "M": M_max},
+        "punto_pico_real": {"phi": phi_peak, "M": M_max},
+
+        # Falla visible en resultados = 80% post-pico
         "punto_falla": {"phi": phi_f, "M": M_f},
-        "punto_final_analisis": {"phi": phi_fin, "M": M_fin},
+
+        # Último punto de la curva
+        "punto_ultimo": {"phi": phi_u, "M": M_u},
+        "punto_final_analisis": {"phi": phi_u, "M": M_u},
+
+        # Degradación explícita (mismo valor que punto_falla)
+        "punto_degradacion": {"phi": phi_f, "M": M_f},
+
         "ductilidad_curvatura": mu_phi,
-        "area_bajo_curva": A,
+        "area_bajo_curva": _area_hasta_phi(phi, M, phi_u),
+
         "criterio_fluencia": (
-            "Curvatura de fluencia equivalente obtenida por idealización "
-            "bilineal de la curva M-φ."
+            "Momento de fluencia efectivo obtenido por idealización bilineal; "
+            "la curvatura de fluencia se calculó como phi_y = M_y / K_i."
         ),
-        "criterio_falla": criterio_falla,
+        "criterio_maximo": (
+            "M_max se definió como el pico real de la curva y phi_max como la "
+            "primera curvatura en la rama ascendente que alcanza el 99% de M_max."
+        ),
+        "criterio_falla": (
+            "El punto de falla se definió como el primer punto post-pico "
+            "en el que la resistencia desciende al 80% del momento máximo."
+        ),
+        "criterio_ultimo": (
+            "El punto último se definió como el último punto disponible "
+            "de la tabla M-φ."
+        ),
+        "criterio_ductilidad": (
+            "La ductilidad por curvatura se calculó como mu_phi = phi_u / phi_y, "
+            "usando la curvatura última de la tabla y no el punto de falla al 80%."
+        ),
     }
-    
+        
 def _f(datos, clave, default=None):
     valor = datos.get(clave, default)
     if valor is None or valor == "":
