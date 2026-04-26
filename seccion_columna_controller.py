@@ -49,7 +49,10 @@ class SeccionColumnaController(QObject):  # <--- Ahora hereda de QObject
                 campo.editingFinished.disconnect()
             except Exception:
                 pass
-            campo.editingFinished.connect(lambda le=campo: corregir_y_normalizar(le))
+            if campo is self.ui.disenar_columna_axial:
+                campo.editingFinished.connect(self._on_editing_finished_axial)
+            else:
+                campo.editingFinished.connect(lambda le=campo: corregir_y_normalizar(le))
             campo.installEventFilter(self)  # <-- ¡Ya funciona!
 
     def eventFilter(self, obj, event):
@@ -77,8 +80,16 @@ class SeccionColumnaController(QObject):  # <--- Ahora hereda de QObject
         self.ui.disenar_columna_axial.setText(datos.get("disenar_columna_axial", ""))
         
     def on_modificacion(self, line_edit):
-        validar_en_tiempo_real(line_edit, self.campos_invalidos, self.error_label)
+        if line_edit is self.ui.disenar_columna_axial:
+            self._validar_carga_axial(mostrar_tooltip=False)
+        else:
+            validar_en_tiempo_real(line_edit, self.campos_invalidos, self.error_label)
 
+    def _on_editing_finished_axial(self):
+        from validation_utils2 import corregir_y_normalizar
+        corregir_y_normalizar(self.ui.disenar_columna_axial)
+        self._ajustar_carga_axial_a_limites()
+         
     def obtener_datos(self):
         return {
             "disenar_columna_nombre": self.ui.disenar_columna_nombre.text(),
@@ -96,15 +107,134 @@ class SeccionColumnaController(QObject):  # <--- Ahora hereda de QObject
             "disenar_columna_axial": self.ui.disenar_columna_axial.text(),
         }
 
+    def _parse_float(self, text, default=0.0):
+        try:
+            from validation_utils2 import parsear_numero
+            v = parsear_numero(text)
+            return default if v is None else float(v)
+        except Exception:
+            return default
+
+
+    def _limites_axiales_columna(self):
+        owner = getattr(self.ui, "_owner", None)
+        if owner is None:
+            return None, None
+
+        datos_h = getattr(owner, "material_hormigon_data", {}) or {}
+        datos_s = getattr(owner, "material_acero_data", {}) or {}
+
+        fc = self._parse_float(datos_h.get("esfuerzo_fc"), 0.0)   # kg/cm2
+        fy = self._parse_float(datos_s.get("esfuerzo_fy"), 0.0)   # kg/cm2
+
+        b = self._parse_float(self.ui.disenar_columna_base.text(), 0.0)   # cm
+        h = self._parse_float(self.ui.disenar_columna_altura.text(), 0.0) # cm
+
+        nx = int(round(self._parse_float(self.ui.disenar_columna_varillasX_2.text(), 0.0)))
+        ny = int(round(self._parse_float(self.ui.disenar_columna_varillasY_2.text(), 0.0)))
+
+        d_gen = self._parse_float(self.ui.disenar_columna_diametro_longitudinal_2.text(), 0.0) / 10.0   # mm -> cm
+        d_esq = self._parse_float(self.ui.disenar_columna_diametro_longitudinal_esq.text(), 0.0) / 10.0 # mm -> cm
+
+        if fc <= 0 or fy <= 0 or b <= 0 or h <= 0 or nx < 2 or ny < 2 or d_gen <= 0 or d_esq <= 0:
+            return None, None
+
+        Ag = b * h  # cm2
+
+        A_esq = 3.141592653589793 * d_esq**2 / 4.0
+        A_gen = 3.141592653589793 * d_gen**2 / 4.0
+
+        # mismo conteo que usa tu columna rectangular con 4 esquinas + barras intermedias
+        n_total = 4 + 2 * max(0, nx - 2) + 2 * max(0, ny - 2)
+        Ast = 4 * A_esq + (n_total - 4) * A_gen
+
+        P0 = 0.85 * fc * (Ag - Ast) + fy * Ast   # kg
+        Pmax = 0.80 * P0                         # kg
+        Pmin = - fy * Ast                        # kg
+
+        return Pmin, Pmax
+
+    def _validar_carga_axial(self, mostrar_tooltip=False):
+        from validation_utils2 import parsear_numero, mostrar_mensaje_error_flotante
+
+        le = self.ui.disenar_columna_axial
+        valor = parsear_numero(le.text())
+
+        Pmin, Pmax = self._limites_axiales_columna()
+
+        valido = (
+            valor is not None and
+            Pmin is not None and
+            Pmax is not None and
+            Pmin <= float(valor) <= Pmax
+        )
+
+        if not valido:
+            le.setStyleSheet("border: 1.5px solid #FF3333;")
+            self.campos_invalidos[le] = True
+            if mostrar_tooltip:
+                mostrar_mensaje_error_flotante(le, self.error_label)
+        else:
+            le.setStyleSheet("")
+            self.campos_invalidos[le] = False
+            if self.error_label.isVisible() and getattr(self.error_label, "campo_actual", None) == le:
+                self.error_label.hide()
+
+        return valido
+
+    def _ajustar_carga_axial_a_limites(self):
+        from validation_utils2 import parsear_numero, mostrar_numero
+
+        le = self.ui.disenar_columna_axial
+        valor = parsear_numero(le.text())
+
+        Pmin, Pmax = self._limites_axiales_columna()
+
+        if valor is None or Pmin is None or Pmax is None:
+            return
+
+        valor_ajustado = float(valor)
+
+        if valor_ajustado > Pmax:
+            valor_ajustado = Pmax
+        elif valor_ajustado < Pmin:
+            valor_ajustado = Pmin
+
+        texto_nuevo = mostrar_numero(valor_ajustado)
+        if le.text() != texto_nuevo:
+            le.setText(texto_nuevo)
+
+        self._validar_carga_axial(mostrar_tooltip=False)
+    
     def validar_campos(self):
         for campo in self.campos_a_validar:
-            validar_en_tiempo_real(campo, self.campos_invalidos, self.error_label)
+            if campo is self.ui.disenar_columna_axial:
+                self._validar_carga_axial(mostrar_tooltip=False)
+            else:
+                validar_en_tiempo_real(campo, self.campos_invalidos, self.error_label)
+
             if self.campos_invalidos[campo]:
                 campo.setFocus()
+
+                if campo is self.ui.disenar_columna_axial:
+                    Pmin, Pmax = self._limites_axiales_columna()
+                    if Pmin is None or Pmax is None:
+                        msg = (
+                            "No se pudo validar la carga axial.\n"
+                            "Revisa primero materiales y geometría de la columna."
+                        )
+                    else:
+                        msg = (
+                            "La carga axial está fuera del rango permitido.\n\n"
+                            f"Rango admisible: {Pmin:.2f} kg a {Pmax:.2f} kg"
+                        )
+                else:
+                    msg = "Formato incorrecto\nPor favor, revisar los campos resaltados en rojo"
+
                 QMessageBox.warning(
                     self.ui.pg_columna,
                     "Revisar el formato",
-                    "Formato incorrecto\nPor favor, revisar los campos resaltados en rojo"
+                    msg
                 )
                 return False
         return True
