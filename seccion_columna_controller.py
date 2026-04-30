@@ -149,8 +149,8 @@ class SeccionColumnaController(QObject):  # <--- Ahora hereda de QObject
         Ast = 4 * A_esq + (n_total - 4) * A_gen
 
         P0 = 0.85 * fc * (Ag - Ast) + fy * Ast   # kg
-        Pmax = 0.80 * P0                         # kg
-        Pmin = - fy * Ast                        # kg
+        Pmin = - 0.80 * P0                         # kg
+        Pmax = fy * Ast                        # kg
 
         return Pmin, Pmax
 

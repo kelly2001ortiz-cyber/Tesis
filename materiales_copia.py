@@ -113,7 +113,7 @@ class modelos:
 
         # Rama descendente lineal
         z2 = (ec < -ec0) & (ec >= -esp)
-        fc[z2] = fc0 * (1 - 0.15 * (-ec[z2] - ec0) / (esp - ec0))
+        fc[z2] = fc0 * (1 - 0.20 * (-ec[z2] - ec0) / (esp - ec0))
 
         return -fc
 
