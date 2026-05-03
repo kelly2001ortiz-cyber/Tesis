@@ -113,7 +113,7 @@ class modelos:
 
         # Rama descendente lineal
         z2 = (ec < -ec0) & (ec >= -esp)
-        fc[z2] = fc0 * (1 - 0.20 * (-ec[z2] - ec0) / (esp - ec0))
+        fc[z2] = fc0 * (1 - 0.15 * (-ec[z2] - ec0) / (esp - ec0))
 
         return -fc
 
@@ -157,7 +157,7 @@ class modelos:
     @staticmethod
     def mander_c(ec, fc0, ec0, esp, Ec, datos_h=None, N=None):
         """
-        Modelo de Mander para hormigón confinado.
+        Modelo de Mander para hormigóSn confinado.
 
         Parámetros:
             ec      : deformación del hormigón
@@ -194,7 +194,7 @@ class modelos:
                 
                 return tau_oct_i - tau_oct_j
             
-            sol = root_scalar(f, bracket=[-4*fc0, -fc0/2], method="brentq")
+            sol = root_scalar(f, bracket=[-4*fc0, -fc0], method="brentq")
             return -sol.root
 
         # Dimensiones del núcleo
@@ -203,10 +203,10 @@ class modelos:
         Ss = Sc - de
 
         # Área inefectiva
-        Wx = (bc - de - 2 * d_corner - (nr_x - 2) * d_edge) / (nr_x - 1)
-        Wy = (dc - de - 2 * d_corner - (nr_y - 2) * d_edge) / (nr_y - 1)
+        Wx = (bc - de - 2 * d_corner - (nr_y - 2) * d_edge) / (nr_y - 1)
+        Wy = (dc - de - 2 * d_corner - (nr_x - 2) * d_edge) / (nr_x - 1)
         
-        Ainef = (2 * (nr_x - 1) * (Wx ** 2) / 6) + (2 * (nr_y - 1) * Wy ** 2 / 6)
+        Ainef = (2 * (nr_y - 1) * (Wx ** 2) / 6) + (2 * (nr_x - 1) * Wy ** 2 / 6)
 
         # Área efectiva confinada
         Ae = (bc * dc - Ainef) * (1 - Ss / (2 * bc)) * (1 - Ss / (2 * dc))
@@ -275,7 +275,7 @@ class modelos:
         Retorna:
             ecu : deformación última del hormigón confinado
         """
-        n = 100
+        n = 101
         # Hormigón no confinado
         ec_uc = np.empty(n)
         ec_uc[0] = -esp

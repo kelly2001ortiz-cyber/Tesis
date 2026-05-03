@@ -744,6 +744,7 @@ def calcular_momento_curvatura(
 
     datos_h = None
     ecu_confinada = None
+    fcc_confinada = None
 
     if tipo == "columna":
         b        = _f(datos_seccion, "disenar_columna_base")
@@ -763,7 +764,7 @@ def calcular_momento_curvatura(
         if usa_mander_c:
             datos_h = _datos_h_mander_confinado(datos_hormigon, datos_acero, datos_seccion)
             ecu_confinada = datos_h[11]
-
+            fcc_confinada = datos_h[12]
     elif tipo == "viga":
         b      = _f(datos_seccion, "disenar_viga_base")
         h      = _f(datos_seccion, "disenar_viga_altura")
@@ -808,6 +809,7 @@ def calcular_momento_curvatura(
         
     if ecu_confinada is not None:
         parametros_mc["ecu_confinada"] = ecu_confinada
+        parametros_mc["fcc_confinada"] = fcc_confinada
 
     return phi_fin, M_fin, c, parametros_mc
 

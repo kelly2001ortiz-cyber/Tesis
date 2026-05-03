@@ -651,9 +651,12 @@ class VentanaPrincipal(QMainWindow):
         self.mc_series = resultados["mc_series"]
         self.mc_parametros = resultados.get("mc_parametros", {})
         ecu = self.mc_parametros.get("mander_conf", {}).get("ecu_confinada")
+        fcc = self.mc_parametros.get("mander_conf", {}).get("fcc_confinada")
 
         if ecu is not None:
             print(f"ecu confinada calculada = {ecu}")
+        if fcc is not None:
+            print(f"fcc confinada calculada = {fcc}")
         self.di_matriz = resultados["di_matriz"]
         self.di_series = resultados["di_series"]
 
