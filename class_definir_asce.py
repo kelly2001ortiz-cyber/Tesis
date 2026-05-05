@@ -537,7 +537,28 @@ class VentanaDefinirASCE(QDialog):
         mostrar_mensaje_error_flotante(line_edit, self.error_label, mensaje)
 
     def validar_campos(self) -> bool:
-        # Aquí puedes añadir validaciones si aplican; por ahora conserva el True del código original.
+        # Longitud obligatoria
+        try:
+            L = float(self.ui.long_viga_asce.text().strip())
+            if L <= 0:
+                self._mostrar_error(self.ui.long_viga_asce, "La longitud debe ser mayor que cero.")
+                return False
+        except Exception:
+            self._mostrar_error(self.ui.long_viga_asce, "Ingresa una longitud válida.")
+            return False
+
+        # Cortante opcional: si está vacío, se calcula automáticamente
+        texto_v = self.ui.corte_viga_asce.text().strip()
+        if texto_v:
+            try:
+                V = float(texto_v)
+                if V <= 0:
+                    self._mostrar_error(self.ui.corte_viga_asce, "El cortante debe ser mayor que cero.")
+                    return False
+            except Exception:
+                self._mostrar_error(self.ui.corte_viga_asce, "Ingresa un cortante válido en kg.")
+                return False
+
         return True
 
     # ----------------- Cálculo y dibujo -----------------

@@ -183,7 +183,7 @@ def calcular_respuesta_seccion(
         "curv_ultima_asce": curR,
         "ductilidad_asce": ductilidad,
         "corte_viga_asce": V_diseno,
-        "corte_viga_asce_calculado": V_calc,
+        "corte_viga_asce_calculado": V_calc * 1000,
     }
 
     return M, thetas, Mr, rots, parametros
@@ -208,7 +208,7 @@ def ejecutar_mc_asce_viga(datos_hormigon, datos_acero, datos_seccion, datos_asce
     
     corte_viga_asce = datos_asce.get("corte_viga_asce", "")
     try:
-        V_usuario = float(corte_viga_asce) if str(corte_viga_asce).strip() != "" else None
+        V_usuario = float(corte_viga_asce)/1000 if str(corte_viga_asce).strip() != "" else None
     except Exception:
         V_usuario = None
         

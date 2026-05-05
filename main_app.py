@@ -164,8 +164,10 @@ class VentanaPrincipal(QMainWindow):
             "descripcion_seccion": "C40X40",
         }
         self.capas_fibras_data = {"fibras_x": "10", "fibras_y": "10"}
+        
         self.asce_data = {
-            "long_viga_asce": "6",
+            "long_viga_asce": "0",
+            "corte_viga_asce": "0",
             # Campos de solo-lectura (se sobreescriben SIEMPRE antes de abrir el diálogo)
             "def_max_asce": "",
             "def_ultima_asce": "",
@@ -197,7 +199,7 @@ class VentanaPrincipal(QMainWindow):
         # LineEdits relevantes (solo cambios del usuario)
         for name in (
             "def_max_asce", "def_ultima_asce", "def_fluencia_asce", "axial_columna_asce",
-            "long_viga_asce",
+            "long_viga_asce", "corte_viga_asce",
         ):
             le = getattr(dlg.ui, name, None)
             if le is not None:

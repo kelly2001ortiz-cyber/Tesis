@@ -88,7 +88,7 @@ def calcular_respuesta_seccion(
     fc, fy, Ec, b, h, rec, d_est, s_est,
     d_long_general, d_long_esquina,
     n_var_x, n_var_y, ram_x, ram_y,
-    ey, ec0, ecu, Long, P0, n_puntos=100):
+    ey, ec0, ecu, Long, P0, n_puntos=100, V_usuario=None):
 
     d = h - rec - d_est - (d_long_general / 10.0) / 2.0           # cm
     dl = h - d                      # cm
@@ -119,7 +119,9 @@ def calcular_respuesta_seccion(
 
     # Mi, Mj y Vy calculados
     Mi, Mj, alpha = calcular_momentos_extremo_desde_lp(My, Long, Lp)
-    Vy = calcular_vy_desde_momentos(Mi, Mj, Long)
+    Vy_calc = calcular_vy_desde_momentos(Mi, Mj, Long)
+    # Si el usuario ingresa cortante, se usa ese valor. Si no, se usa el valor automático.
+    Vy = V_usuario if V_usuario is not None and V_usuario > 0 else Vy_calc
 
     # V0 y razón Vy/Vo calculados
     Vo = calcular_vo_rectangular(fc=fc, Ag=A, Av=Av, fy=fy, d=d, s=s_est, La=La_cm, P0=P0)
@@ -135,7 +137,8 @@ def calcular_respuesta_seccion(
     # Momento-rotación
     roty = Long * My / (6.0 * EI)
     rotu = roty + a
-    Mu = My + 0.05 * EI * (rotu - roty)
+    #Mu = My + 0.05 * EI * (rotu - roty)
+    Mu = My + 0.05 * My / roty * (rotu - roty)
     MR = c * My
     rotR = roty + b_par
     Momento = np.array([0.0, My, Mu, MR, MR], dtype=float)
@@ -145,10 +148,10 @@ def calcular_respuesta_seccion(
     
     # Momento-curvatura
     cury = phy_y
-    curu = cury + rotu / Lp
-    curR = cury + rotR / Lp
-    #curu = cury + (rotu - roty) / Lp
-    #curR = cury + (rotR - roty) / Lp
+    #curu = cury + rotu / Lp
+    #curR = cury + rotR / Lp
+    curu = cury + (rotu - roty) / Lp
+    curR = cury + (rotR - roty) / Lp
     Curvatura = np.array([0.0, cury, curu, curu + 0.1 * (curR - curu), curR], dtype=float)
     thetas = np.linspace(Curvatura.min(), Curvatura.max(), n_puntos)
     M = np.interp(thetas, Curvatura, Momento)
@@ -165,6 +168,12 @@ def calcular_respuesta_seccion(
         "m_ultimo_asce": MR,
         "curv_ultima_asce": curR,
         "ductilidad_asce": ductilidad,
+        
+        # Valores de control ASCE
+        "corte_columna_asce": Vy,
+        "corte_columna_asce_calculado": Vy_calc,
+        "vo_columna_asce": Vo,
+        "vy_vo_columna_asce": vy_vo,
     }
     return M, thetas, Mr, rots, parametros
 
@@ -188,12 +197,17 @@ def ejecutar_mc_asce_columnaY(datos_hormigon, datos_acero, datos_seccion, datos_
     s_est = float(datos_seccion.get("disenar_columna_espaciamiento"))
     P0 = float(datos_seccion.get("disenar_columna_axial")) / 1000.0  # T
     Long = float(datos_asce.get("long_viga_asce"))
-
+    
+    corte_asce = datos_asce.get("corte_viga_asce", "")
+    try:
+        V_usuario = float(corte_asce) / 1000.0 if str(corte_asce).strip() != "" else None
+    except Exception:
+        V_usuario = None
     M, thetas, Mr, rots, parametros = calcular_respuesta_seccion(
         fc, fy, Ec, b, h, rec, d_est, s_est,
         d_long_general, d_long_esquina,
         n_var_x, n_var_y, ram_x, ram_y,
         ey, ec0, ecu, Long, P0,
-        n_puntos=100)
+        n_puntos=100, V_usuario=V_usuario)
 
     return M, thetas, Mr, rots, parametros
