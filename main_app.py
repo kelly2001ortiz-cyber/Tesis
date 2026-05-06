@@ -166,8 +166,10 @@ class VentanaPrincipal(QMainWindow):
         self.capas_fibras_data = {"fibras_x": "10", "fibras_y": "10"}
         
         self.asce_data = {
-            "long_viga_asce": "0",
-            "corte_viga_asce": "0",
+            "long_viga_asce": "6",
+            "corte_viga_asce": "",
+            "_asce_corte_manual": False,
+            "_asce_corte_habilitado": False,
             # Campos de solo-lectura (se sobreescriben SIEMPRE antes de abrir el diálogo)
             "def_max_asce": "",
             "def_ultima_asce": "",

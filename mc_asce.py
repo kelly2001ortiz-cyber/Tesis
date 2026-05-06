@@ -30,7 +30,7 @@ def calcular_fluencia(b, d, dl, fc, fy, ey, ec0, ecu, As, Asl, P0=0.0, columna=F
 
     ec = min(phi_y * d / 100 - ey, ecu)
     niu = 0.75 / (1 + alfay) * (ec / ec0) ** 0.7
-    alfac = min((1 - Bc) * ec / ey - Bc, 1.0)
+    alfac = max(0.0, min((1 - Bc) * ec / ey - Bc, 1.0))
 
     My = (0.5 * fc * 10 * b / 100 * (d / 100) ** 2) * (
         (1 + Bc - niu) * niu0 + (2 - niu) * pt + (niu - 2 * Bc) * alfac * ptl
@@ -128,8 +128,8 @@ def calcular_viga(mat, sec, Long, V_usuario=None, n=100):
     n_inf = _ent(sec, "disenar_viga_varillas_inferior")
 
     area = lambda db_mm: np.pi / 4 * (db_mm / 10) ** 2
-    d = h - rec - d_est - (d_sup / 10) / 2
-    dl = h - d
+    d = h - rec - d_est - (d_inf / 10) / 2
+    dl = rec + d_est + (d_sup / 10) / 2
     I = b * h ** 3 / 12
     EI = Ec * 10 * I / 100 ** 4
     As = n_inf * area(d_inf)
@@ -187,7 +187,7 @@ def calcular_columna(mat, sec, datos_asce, direccion, V_usuario=None, n=100):
     s_est = _num(sec, "disenar_columna_espaciamiento")
     db = _num(sec, "disenar_columna_diametro_longitudinal_2")
     db_esq = _num(sec, "disenar_columna_diametro_longitudinal_esq")
-    P0 = _num(sec, "disenar_columna_axial") / 1000
+    P0 = -_num(sec, "disenar_columna_axial") / 1000
     Long = _num(datos_asce, "long_viga_asce")
 
     area = lambda db_mm: np.pi / 4 * (db_mm / 10) ** 2
@@ -196,9 +196,11 @@ def calcular_columna(mat, sec, datos_asce, direccion, V_usuario=None, n=100):
     As = 2 * A_corner + max(0, n_y - 2) * A_gen 
     Asl = 2 * A_corner + max(0, n_y - 2) * A_gen
     As_total = 4 * A_corner + 2 * max(0, n_x - 2) * A_gen + 2 * max(0, n_y - 2) * A_gen
+    y_corner = rec + d_est + (db_esq / 10) / 2
+    y_gen = rec + d_est + (db / 10) / 2
 
-    d = h - rec - d_est - (db_esq / 10) / 2
-    dl = rec + d_est + (db_esq / 10) / 2
+    dl = (2 * A_corner * y_corner + max(0, n_y - 2) * A_gen * y_gen) / As
+    d = h - dl
     A = b * h
     I = b * h ** 3 / 12
     rel_axial_EI = P0 / ((b * h / 100**2) * fc * 10) # Relacion axial para determinar factor de rigidez.
@@ -231,8 +233,8 @@ def calcular_columna(mat, sec, datos_asce, direccion, V_usuario=None, n=100):
     M, curv, Mr, rot, p = construir_diagramas(My, phi_y, EI, Long, Lp, a, b_par, c, n)
     p.update({
         "corte_columna_asce": Vy,
-        "corte_columna_asce_calculado": Vy_calc,
-        "corte_columna_asce_usado": Vy,
+        "corte_columna_asce_calculado": Vy_calc * 1000,
+        "corte_columna_asce_usado": Vy * 1000,
         "vo_columna_asce": Vo,
         "vy_vo_columna_asce": vy_vo,
         "relacion_axial_columna_asce": rel_axial,

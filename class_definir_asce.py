@@ -1,9 +1,8 @@
-# class_definir_asce.py  (versión optimizada)
 from __future__ import annotations
 from typing import Optional, Tuple, List, Dict, Any
 
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QSizePolicy
-from PySide6.QtCore import QEvent
+from PySide6.QtCore import QEvent, QSignalBlocker
 
 from ui_definir_asce import Ui_definir_asce
 from validation_utils2 import (
@@ -20,8 +19,6 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 
-
-# ---------------- Toolbar compacta ----------------
 class CustomToolbar(NavigationToolbar2QT):
     toolitems = [
         ('Home', 'Reset original view', 'home', 'home'),
@@ -32,21 +29,17 @@ class CustomToolbar(NavigationToolbar2QT):
         ('Save', 'Save the figure', 'filesave', 'save_figure'),
     ]
 
-
 class VentanaDefinirASCE(QDialog):
-    """
-    Ventana para configurar parámetros ASCE y graficar:
-      - Momento–Rotación (btn_calcular_rotacion)
-      - Momento–Curvatura (btn_calcular_curvatura)
-    """
-
     # ------- Claves internas para persistencia -------
     _K_PLOT_KIND   = "_asce_plot_kind"       # "rotacion" | "curvatura" | None
     _K_PLOT_X      = "_asce_plot_x"
     _K_PLOT_Y      = "_asce_plot_y"
     _K_PLOT_XLABEL = "_asce_plot_xlabel"
     _K_PLOT_YLABEL = "_asce_plot_ylabel"
-    _K_MAT_SIG     = "_asce_mat_signature"   # firma materiales
+    _K_MAT_SIG     = "_asce_mat_signature"    # firma materiales
+    _K_CORTE_MANUAL = "_asce_corte_manual"     # True si el usuario editó V manualmente
+    _K_CORTE_LIBRE  = "_asce_corte_habilitado" # True después de la primera curva mostrada
+    _K_CHECK_CURV   = "_asce_check_curvatura"  # estado del check de Momento-Curvatura
 
     # Colores fijos por tipo de curva
     _COLOR_ROT  = "magenta"
@@ -76,6 +69,8 @@ class VentanaDefinirASCE(QDialog):
         self._asce_data: Dict[str, Any] = datos_iniciales if isinstance(datos_iniciales, dict) else {}
         self._tipo_seccion: str = getattr(self, "_tipo_seccion", seccion_actual)  # compat con inyección
         self._grafica_actual: Optional[str] = None  # "rotacion" | "curvatura" | None
+        self._corte_asce_habilitado: bool = False
+        self._corte_viga_editado_manualmente: bool = False
 
         # Buffers para curva y hover
         self.series_asce = None
@@ -140,12 +135,12 @@ class VentanaDefinirASCE(QDialog):
         self._hidratando = True
         self._refrescar_campos_materiales_desde_dicts()  # 1) material -> _asce_data
         self._cargar_datos(self._asce_data)              # 2) _asce_data -> UI
-        if hasattr(self.ui, "corte_viga_asce"):
-            self._corte_viga_editado_manualmente = bool(self.ui.corte_viga_asce.text().strip())
         self._snapshot_ui = self._obtener_datos()        # 3) snapshot
 
-        # 4) checkBox_curvatura gobierna groupBox_3
+        # 4) checkBox_curvatura gobierna groupBox_3 y se persiste
         if hasattr(self.ui, "checkBox_curvatura") and hasattr(self.ui, "groupBox_3"):
+            chk_guardado = bool(self._asce_data.get(self._K_CHECK_CURV, self.ui.checkBox_curvatura.isChecked()))
+            self.ui.checkBox_curvatura.setChecked(chk_guardado)
             self.ui.groupBox_3.setEnabled(self.ui.checkBox_curvatura.isChecked())
             self.ui.checkBox_curvatura.stateChanged.connect(self._on_toggle_curvatura)
 
@@ -166,6 +161,11 @@ class VentanaDefinirASCE(QDialog):
         if not restaurada:
             self._grafica_actual = None
             self._limpiar_cuadricula(etiqueta_x="")
+
+        # El cortante se bloquea hasta que se muestre la primera curva.
+        # Si se restaura una curva guardada, ya existe un resultado mostrado y se puede editar.
+        self._configurar_corte_inicial(restaurada)
+        self._snapshot_ui = self._obtener_datos()
 
         self._hidratando = False  # fin hidratación
 
@@ -189,6 +189,114 @@ class VentanaDefinirASCE(QDialog):
             return line_edit.text().strip()
         except Exception:
             return ""
+
+    def _lineedit_corte(self):
+        return getattr(self.ui, "corte_viga_asce", None)
+
+    def _habilitar_edicion_corte(self, habilitar: bool):
+        """Habilita el ingreso manual de V solo después de una curva mostrada."""
+        le = self._lineedit_corte()
+        self._corte_asce_habilitado = bool(habilitar)
+        self._asce_data[self._K_CORTE_LIBRE] = bool(habilitar)
+        if le is None:
+            return
+        le.setEnabled(bool(habilitar))
+        le.setReadOnly(not bool(habilitar))
+
+    def _set_corte_texto_programatico(self, valor, fmt: str = ".6g"):
+        """Actualiza el QLineEdit de V sin marcarlo como edición del usuario."""
+        le = self._lineedit_corte()
+        if le is None:
+            return
+        blocker = QSignalBlocker(le)
+        try:
+            if valor is None:
+                le.setText("")
+            else:
+                le.setText(format(float(valor), fmt))
+        except Exception:
+            le.setText(str(valor))
+        finally:
+            del blocker
+        self._asce_data["corte_viga_asce"] = le.text().strip()
+        self._snapshot_ui["corte_viga_asce"] = le.text().strip()
+
+    def _configurar_corte_inicial(self, hay_curva_restaurada: bool):
+        """
+        Configura el estado inicial de V.
+
+        - Primera apertura real: V empieza bloqueado/vacío y se llenará con el
+          cálculo automático de Momento-Rotación al terminar la configuración.
+        - Reapertura con curva guardada: V queda editable, conservando si era
+          automático o manual.
+        - Reapertura tras una edición pendiente: se conserva el V escrito por
+          el usuario y al abrir se recalcula la rotación con ese valor.
+        """
+        le = self._lineedit_corte()
+        if le is None:
+            return
+
+        texto_guardado = str(self._asce_data.get("corte_viga_asce", "")).strip()
+        corte_estaba_habilitado = bool(self._asce_data.get(self._K_CORTE_LIBRE, False))
+        corte_estaba_manual = bool(self._asce_data.get(self._K_CORTE_MANUAL, False)) and bool(texto_guardado)
+
+        if hay_curva_restaurada or corte_estaba_habilitado or corte_estaba_manual:
+            self._habilitar_edicion_corte(True)
+            self._corte_viga_editado_manualmente = corte_estaba_manual
+            self._asce_data[self._K_CORTE_MANUAL] = self._corte_viga_editado_manualmente
+        else:
+            self._corte_viga_editado_manualmente = False
+            self._asce_data[self._K_CORTE_MANUAL] = False
+            self._habilitar_edicion_corte(False)
+            self._set_corte_texto_programatico("")
+
+    def preparar_al_abrir(self, auto_graficar_rotacion: bool = True):
+        """
+        Se llama desde main_app después de inyectar calculadora, dirección,
+        materiales y sección. Si no hay una curva persistida, calcula y dibuja
+        Momento-Rotación automáticamente para que la ventana abra con resultado.
+        """
+        self._hidratando = True
+        try:
+            self._refrescar_campos_materiales_desde_dicts()
+            self._cargar_datos(self._asce_data)
+            self._snapshot_ui = self._obtener_datos()
+        finally:
+            self._hidratando = False
+
+        if auto_graficar_rotacion and self._grafica_actual is None:
+            self._calc_y_plot_rotacion()
+
+    def _corte_usuario_activo(self) -> bool:
+        """True solo cuando el usuario ya puede editar V y dejó un valor manual válido/no vacío."""
+        if not self._corte_asce_habilitado:
+            return False
+        le = self._lineedit_corte()
+        if le is None:
+            return False
+        return self._corte_viga_editado_manualmente and bool(le.text().strip())
+
+    def _set_corte_manual_desde_ui(self):
+        le = self._lineedit_corte()
+        texto = le.text().strip() if le is not None else ""
+        self._corte_viga_editado_manualmente = bool(texto) and self._corte_asce_habilitado
+        self._asce_data[self._K_CORTE_MANUAL] = self._corte_viga_editado_manualmente
+
+    def _valor_corte_parametros(self, parametros: dict):
+        """Devuelve el V que debe verse en la UI: usado si fue manual, calculado si fue automático."""
+        if not isinstance(parametros, dict):
+            return None
+        if self._corte_usuario_activo():
+            for k in ("corte_viga_asce_usado", "corte_columna_asce_usado"):
+                if k in parametros:
+                    return parametros[k]
+        for k in ("corte_viga_asce_calculado", "corte_columna_asce_calculado"):
+            if k in parametros:
+                return parametros[k]
+        for k in ("corte_viga_asce_usado", "corte_columna_asce_usado"):
+            if k in parametros:
+                return parametros[k]
+        return None
 
     def _silenciar_coords(self, ax):
         try:
@@ -223,9 +331,13 @@ class VentanaDefinirASCE(QDialog):
             if nombre in parametros:
                 self._set_lineedit_text(nombre, parametros.get(nombre))
 
-        # corte_viga_asce solo se sobreescribe si no ha sido editado manualmente por el usuario
-        if "corte_viga_asce_calculado" in parametros and not self._corte_viga_editado_manualmente:
-            self._set_lineedit_text("corte_viga_asce", parametros["corte_viga_asce_calculado"])
+        # Después del primer Mostrar se habilita V. Si el usuario no lo editó,
+        # mostramos y usamos el cortante automático; si lo editó, conservamos el usado.
+        valor_corte = self._valor_corte_parametros(parametros)
+        if valor_corte is not None:
+            self._set_corte_texto_programatico(valor_corte)
+            self._habilitar_edicion_corte(True)
+            self._asce_data[self._K_CORTE_MANUAL] = self._corte_viga_editado_manualmente
         
     # ----------------- Carga / snapshot -----------------
     def _cargar_datos(self, d: dict):
@@ -237,6 +349,8 @@ class VentanaDefinirASCE(QDialog):
 
     def _actualizar_asce_data(self):
         self._asce_data.update(self._obtener_datos())
+        if hasattr(self.ui, "checkBox_curvatura"):
+            self._asce_data[self._K_CHECK_CURV] = bool(self.ui.checkBox_curvatura.isChecked())
 
     # ----------------- Materiales -> _asce_data -----------------
     def _refrescar_campos_materiales_desde_dicts(self):
@@ -266,10 +380,15 @@ class VentanaDefinirASCE(QDialog):
             return
 
         key = self._map_le_to_key.get(line_edit)
+        if key == "corte_viga_asce" and not self._corte_asce_habilitado:
+            return
         if key:
             nuevo = self._valor_lineedit(line_edit)
             if nuevo == self._snapshot_ui.get(key, ""):
                 return
+
+        if key == "corte_viga_asce":
+            self._set_corte_manual_desde_ui()
 
         validar_en_tiempo_real(line_edit, {}, self.error_label)
         self.cambios_pendientes = True
@@ -278,10 +397,6 @@ class VentanaDefinirASCE(QDialog):
 
         if key:
             self._snapshot_ui[key] = self._valor_lineedit(line_edit)
-        
-        if key == "corte_viga_asce":
-            texto = self._valor_lineedit(line_edit)
-            self._corte_viga_editado_manualmente = bool(texto)
 
     def _normalizar_y_actualizar(self, line_edit):
         if self._hidratando:
@@ -290,19 +405,20 @@ class VentanaDefinirASCE(QDialog):
         validar_en_tiempo_real(line_edit, {}, self.error_label)
 
         key = self._map_le_to_key.get(line_edit)
+        if key == "corte_viga_asce" and not self._corte_asce_habilitado:
+            return
         if key and self._valor_lineedit(line_edit) == self._snapshot_ui.get(key, ""):
             self._actualizar_asce_data()
             return
+
+        if key == "corte_viga_asce":
+            self._set_corte_manual_desde_ui()
 
         self._actualizar_asce_data()
         self.cambios_pendientes = True
         self._post_edicion_lineedit(line_edit)
         if key:
             self._snapshot_ui[key] = self._valor_lineedit(line_edit)
-        
-        if key == "corte_viga_asce":
-            texto = self._valor_lineedit(line_edit)
-            self._corte_viga_editado_manualmente = bool(texto)
             
     def _autocompletar_corte_viga_si_aplica(self):
         try:
@@ -344,25 +460,20 @@ class VentanaDefinirASCE(QDialog):
         try:
             if hasattr(self.ui, "groupBox_3"):
                 self.ui.groupBox_3.setEnabled(self.ui.checkBox_curvatura.isChecked())
+            self._actualizar_asce_data()
+            if not self._hidratando:
+                self.cambios_pendientes = True
         except Exception:
             pass
 
     # ----------------- Reglas de limpieza tras edición -----------------
     def _post_edicion_lineedit(self, line_edit):
-        solo_curvatura = set()
-        if hasattr(self.ui, "long_viga_asce"):
-            solo_curvatura.add(self.ui.long_viga_asce)
-        
+        # Cualquier entrada ASCE puede afectar Momento-Rotación y/o Momento-Curvatura
+        # porque Longitud y Cortante participan en la construcción del diagrama.
         etiqueta_x = {"rotacion": "Rotación, \u03B8 (rad)", "curvatura": "Curvatura, \u03BA (1/m)"}\
             .get(self._grafica_actual, "")
-        if line_edit in solo_curvatura:
-            if self._grafica_actual == "curvatura":
-                self._limpiar_cuadricula(etiqueta_x)
-                self._borrar_persistencia_grafica()
-        else:
-            self._limpiar_cuadricula(etiqueta_x)
-            self._borrar_persistencia_grafica()
-        self._autocompletar_corte_viga_si_aplica()
+        self._limpiar_cuadricula(etiqueta_x)
+        self._borrar_persistencia_grafica()
 
     # ----------------- Empaquetado de datos para cálculo -----------------
     def _paquete_datos(self) -> dict:
@@ -413,7 +524,7 @@ class VentanaDefinirASCE(QDialog):
         self._setup_axes(etiqueta_x, etiqueta_y)
         self._reset_buffers()
         self.canvas.draw_idle()
-        self._set_status("Parámetros modificados. Presiona 'Calcular' para actualizar la curva.")
+        self._set_status("Parámetros modificados. Presiona 'Mostrar' para actualizar la curva.")
 
     def _reset_buffers(self):
         self._xy_disp_asce = None
@@ -534,7 +645,8 @@ class VentanaDefinirASCE(QDialog):
 
     # ----------------- Errores y validación previa -----------------
     def _mostrar_error(self, line_edit, mensaje: str):
-        mostrar_mensaje_error_flotante(line_edit, self.error_label, mensaje)
+        self.error_label.setText(mensaje)
+        mostrar_mensaje_error_flotante(line_edit, self.error_label)
 
     def validar_campos(self) -> bool:
         # Longitud obligatoria
@@ -547,9 +659,10 @@ class VentanaDefinirASCE(QDialog):
             self._mostrar_error(self.ui.long_viga_asce, "Ingresa una longitud válida.")
             return False
 
-        # Cortante opcional: si está vacío, se calcula automáticamente
+        # Cortante manual: solo se valida si el usuario ya lo desbloqueó y lo editó.
+        # Si está bloqueado o vacío, se calcula automáticamente en mc_asce.
         texto_v = self.ui.corte_viga_asce.text().strip()
-        if texto_v:
+        if self._corte_usuario_activo():
             try:
                 V = float(texto_v)
                 if V <= 0:
@@ -592,6 +705,10 @@ class VentanaDefinirASCE(QDialog):
             "long_viga_asce", "corte_viga_asce",
         ]
         datos_asce = {k: p.get(k) for k in keys_asce if k in p}
+        if not self._corte_usuario_activo():
+            # Primera ejecución o modo automático: no enviamos el valor visible del QLineEdit,
+            # para que mc_asce calcule V con la formulación interna.
+            datos_asce["corte_viga_asce"] = ""
 
         try:
             if hasattr(calc, "calcular"):
