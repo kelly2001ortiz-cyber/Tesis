@@ -37,6 +37,89 @@ def calcular_fluencia(b, d, dl, fc, fy, ey, ec0, ecu, As, Asl, P0=0.0, columna=F
     )
     return My, phi_y
 
+def _xi_y_monti(delta_y, mu_sy, eta, beta, n_sdy, eps_bar):
+    xi_hat = 0.5
+    mu_tot = mu_sy * (1.0 + eta + 2.0 * beta)
+
+    num = (
+        n_sdy
+        + xi_hat**2 * (2.0 * eps_bar**2 * xi_hat - n_sdy - mu_tot)
+        + mu_sy * (1.0 + eta * delta_y + beta * (1.0 + delta_y))
+    )
+    den = (
+        2.0 * n_sdy
+        + 2.0 * xi_hat * (1.5 * eps_bar**2 * xi_hat - n_sdy - mu_tot)
+        + mu_sy * (2.0 + eta * (1.0 + delta_y) + beta * (3.0 + delta_y))
+    )
+
+    if abs(den) < 1e-15:
+        raise ValueError("Denominador nulo en el calculo de xi_y de Monti-Petrone.")
+    return num / den
+
+
+def _my_norm_monti(delta_y, xi_y, mu_sy, eta, beta, eps_bar, nu_c=0.33):
+    om = 1.0 - xi_y
+    if abs(om) < 1e-15:
+        raise ValueError("xi_y demasiado cercano a 1.0 en Monti-Petrone.")
+
+    term1 = mu_sy * (1.0 - delta_y) * (1.0 + eta * (xi_y - delta_y) / om)
+    term2 = eps_bar**2 * xi_y * (xi_y / om) ** 2 * ((1.0 + delta_y) - 2.0 * nu_c * xi_y)
+    term3 = (beta * mu_sy / max(1.0 - delta_y, 1e-15)) * (
+        ((xi_y - delta_y) ** 2 / om) * ((1.0 - delta_y) - (2.0 / 3.0) * (xi_y - delta_y))
+        + om * ((1.0 - delta_y) - (2.0 / 3.0) * om)
+    )
+    return 0.5 * (term1 + term2 + term3)
+
+
+def calcular_fluencia_monti(b, d, dl, fc, fy, ey, ecu, As, Asl, P0=0.0, A_lado=0.0):
+    b = float(b)
+    d = float(d)
+    dl = float(dl)
+    fc = float(fc)
+    fy = float(fy)
+    ey = float(ey)
+    ecu = float(ecu)
+    As = float(As)
+    Asl = float(Asl)
+    A_lado = float(A_lado or 0.0)
+    P0 = float(P0 or 0.0)
+
+    if b <= 0 or d <= 0 or fc <= 0 or fy <= 0 or ey <= 0 or ecu <= 0 or As <= 0:
+        raise ValueError("Datos no validos para calcular la fluencia con Monti-Petrone.")
+
+    delta_y = dl / d
+    eta = Asl / As
+    beta = A_lado / As
+    mu_sy = As * fy / (b * d * fc)
+
+    n_sdy = (P0 * 1000.0) / (b * d * fc)
+    eps_bar = ey / ecu
+
+    xi_y = _xi_y_monti(delta_y, mu_sy, eta, beta, n_sdy, eps_bar)
+    myd = _my_norm_monti(delta_y, xi_y, mu_sy, eta, beta, eps_bar)
+
+    if abs(1.0 - xi_y) < 1e-15:
+        raise ValueError("No se puede calcular phi_y: xi_y cercano a 1.")
+
+    phi_y = ey / (d * (1.0 - xi_y)) * 100.0  # 1/cm a 1/m
+
+    My = myd * b * d**2 * fc / 100000.0   # kg*cm -> T*m
+
+    My = abs(float(My))
+    phi_y = abs(float(phi_y))
+
+    extras = {
+        "fluencia_modelo_asce": "Monti-Petrone-2015",
+        "monti_xi_y_asce": float(xi_y),
+        "monti_delta_y_asce": float(delta_y),
+        "monti_eta_asce": float(eta),
+        "monti_beta_asce": float(beta),
+        "monti_mu_sy_asce": float(mu_sy),
+        "monti_n_sdy_asce": float(n_sdy),
+        "monti_myd_asce": float(myd),
+    }
+    return My, phi_y, extras
+
 
 def parametros_viga(cuantia, confinado, v_norma):
     x = max(0.0, min(0.5, cuantia))
@@ -200,6 +283,7 @@ def calcular_columna(mat, sec, datos_asce, direccion, V_usuario=None, n=100):
     A_gen = area(db)
     As = 2 * A_corner + max(0, n_y - 2) * A_gen 
     Asl = 2 * A_corner + max(0, n_y - 2) * A_gen
+    A_lado = max(0, n_x - 2) * A_gen
     As_total = 4 * A_corner + 2 * max(0, n_x - 2) * A_gen + 2 * max(0, n_y - 2) * A_gen
     y_corner = rec + d_est + (db_esq / 10) / 2
     y_gen = rec + d_est + (db / 10) / 2
@@ -213,7 +297,20 @@ def calcular_columna(mat, sec, datos_asce, direccion, V_usuario=None, n=100):
     EI = factor_EI * Ec * 10 * I / 100**4
     Av = ram_x * np.pi / 4 * d_est ** 2
 
-    My, phi_y = calcular_fluencia(b, d, dl, fc, fy, ey, ec0, ecu, As, Asl, P0, columna=True)
+    My_monti, phi_y_monti, fluencia_extra = calcular_fluencia_monti(
+        b, d, dl, fc, fy, ey, ecu, As, Asl, P0=P0, A_lado=A_lado
+    )
+    _, phi_y_park = calcular_fluencia(
+        b, d, dl, fc, fy, ey, ec0, ecu, As, Asl, P0, columna=True
+    )
+    My = My_monti
+    phi_y = phi_y_park
+    fluencia_extra.update({
+        "fluencia_modelo_asce": "Monti-My + Metodo-anterior-phi-columna",
+        "m_fluencia_monti_asce": float(My_monti),
+        "curv_fluencia_monti_asce": float(phi_y_monti),
+        "curv_fluencia_metodo_park_asce": float(phi_y_park),
+    })
 
     La_m = Long / 2
     La_cm = La_m * 100
@@ -236,6 +333,7 @@ def calcular_columna(mat, sec, datos_asce, direccion, V_usuario=None, n=100):
     a, b_par, c = parametros_columna(rel_axial, rho_t, vy_vo, fc, fy)
 
     M, curv, Mr, rot, p = construir_diagramas(My, phi_y, EI, Long, Lp, a, b_par, c, n)
+    p.update(fluencia_extra)
     p.update({
         "corte_columna_asce": Vy,
         "corte_columna_asce_calculado": Vy_calc * 1000,
@@ -247,6 +345,7 @@ def calcular_columna(mat, sec, datos_asce, direccion, V_usuario=None, n=100):
         "lp_asce": Lp,
         "la_asce": La_m,
         "as_total_columna_asce": As_total,
+        "as_lateral_monti_asce": A_lado,
     })
     return M, curv, Mr, rot, p
 

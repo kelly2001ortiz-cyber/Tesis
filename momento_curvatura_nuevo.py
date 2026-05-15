@@ -151,7 +151,8 @@ def momrot(c_min, c_max, phi, cover, core, As, tol, h, fc0, ec0, esp, Ec,
 # Funcion para obtener el diagrama momento-curvatura
 def diagrama_MC(cover, core, As, tol, h, fc0, ec0, esp, Ec,
                 fy, fsu, Es, ey, esh, esu,
-                P, datos_h, sg_cover, sg_core):
+                P, datos_h, sg_cover, sg_core,
+                recuperar_rama=False):
     
     dphi_min, dphi_max = 5.0e-7, 3.5e-5
     phi_ini, dphi_ini = 3.5e-7, 5.0e-7
@@ -162,39 +163,141 @@ def diagrama_MC(cover, core, As, tol, h, fc0, ec0, esp, Ec,
 
     phi = phi_ini
     dphi = dphi_ini
-    c_min = -500*h
-    c_max = 500*h
+    c_min = -500 * h
+    c_max = 500 * h
     c_prev = None
     phi_prev = None
+
     Mmax = 0.0
     post_pico = False
-    pts_extra = 50
+    pts_extra = 180 if recuperar_rama else 50
     fallos_consecutivos = 0
     max_fallos = 10
-    
+
     residual = False
     caida_final_detectada = False
-    tol_horizontal = 0.01
 
     # Parámetros de control
-    limite_post_pico = 0.80       # entra a zona post-pico
-    limite_residual = 0.65        # si mantiene al menos 65% de Mmax, es residual aceptable
+    limite_post_pico = 0.80
+    limite_residual = 0.65
 
-    caida_suave = 0.05            # variación pequeña entre puntos
-    caida_brusca_1paso = 0.25     # caída fuerte entre dos puntos
-    caida_brusca_ventana = 0.30   # caída fuerte en varios puntos
+    caida_suave = 0.05
+    caida_brusca_1paso = 0.25
+    caida_brusca_ventana = 0.30
 
-    w = 3                         # ventana corta para detectar caída brusca
+    w = 3
+
+    def buscar_rama_residual(phi_busqueda, M_ref):
+        """
+        Busca una rama residual positiva cuando la rama actual se corta.
+        Se activa solo para vigas mediante recuperar_rama=True.
+        No modifica momrot().
+        """
+        if not recuperar_rama or Mmax <= 0 or M_ref <= 0:
+            return None, None
+
+        def N_eq(c):
+            return resultantes(
+                c, phi_busqueda, cover, core, As,
+                fc0, ec0, esp, Ec,
+                fy, fsu, Es, ey, esh, esu,
+                P, datos_h, sg_cover, sg_core
+            )[0]
+
+        # Búsqueda global de raíces de equilibrio axial
+        c_grid = np.linspace(c_min, c_max, 801)
+        N_grid = np.array([N_eq(c) for c in c_grid], dtype=float)
+
+        roots = []
+
+        for i in range(len(c_grid) - 1):
+            N1 = N_grid[i]
+            N2 = N_grid[i + 1]
+
+            if not np.isfinite(N1) or not np.isfinite(N2):
+                continue
+
+            if abs(N1) < tol:
+                roots.append(c_grid[i])
+
+            elif N1 * N2 < 0.0:
+                try:
+                    sol = root_scalar(
+                        N_eq,
+                        bracket=[c_grid[i], c_grid[i + 1]],
+                        method="brentq"
+                    )
+                    if sol.converged:
+                        roots.append(sol.root)
+                except ValueError:
+                    pass
+
+        if not roots:
+            return None, None
+
+        # Eliminar raíces repetidas muy cercanas
+        roots = np.array(roots, dtype=float)
+        roots = roots[np.isfinite(roots)]
+        roots.sort()
+
+        roots_filtradas = []
+        for r0 in roots:
+            if not roots_filtradas:
+                roots_filtradas.append(r0)
+            elif abs(r0 - roots_filtradas[-1]) > 1e-7 * max(h, 1.0):
+                roots_filtradas.append(r0)
+
+        candidatos = []
+
+        for c0 in roots_filtradas:
+            M_signed = resultantes(
+                c0, phi_busqueda, cover, core, As,
+                fc0, ec0, esp, Ec,
+                fy, fsu, Es, ey, esh, esu,
+                P, datos_h, sg_cover, sg_core
+            )[1]
+
+            M_pos = -M_signed
+
+            # Se acepta solo una rama positiva y menor que la rama actual.
+            # Esto permite dibujar la caída, sin saltar a una rama superior falsa.
+            if np.isfinite(M_pos) and M_pos > 0.0 and M_pos < 0.98 * M_ref:
+                candidatos.append((M_pos, c0))
+
+        if not candidatos:
+            return None, None
+
+        # Elegir la rama residual más alta, para no saltar directo a cero.
+        M_rec, c_rec = max(candidatos, key=lambda item: item[0])
+        return M_rec, c_rec
 
     for _ in range(10000):
-        Mi, ci = momrot(c_min, c_max, phi, cover, core, As, tol, h, fc0, ec0, esp, Ec,
-                        fy, fsu, Es, ey, esh, esu,
-                        P, datos_h, sg_cover, sg_core, c_prev, phi_prev)
+        Mi, ci = momrot(
+            c_min, c_max, phi, cover, core, As, tol, h,
+            fc0, ec0, esp, Ec,
+            fy, fsu, Es, ey, esh, esu,
+            P, datos_h, sg_cover, sg_core,
+            c_prev, phi_prev
+        )
 
-        # No hay solucion de equilibrio: falla numerica/fisica
-        # Si falla, probar reduciendo paso antes de salir
+        # Si falla la rama local, intentar recuperar rama residual
+        # antes de cortar la curva.
         if Mi is None:
+            M_rec, c_rec = buscar_rama_residual(phi, M_vals[-1])
+
+            if M_rec is not None:
+                phi_vals.append(phi)
+                M_vals.append(M_rec)
+                c_vals.append(c_rec)
+
+                c_prev = c_rec
+                phi_prev = phi
+                phi += dphi
+                fallos_consecutivos = 0
+                continue
+
             fallos_consecutivos += 1
+
             if fallos_consecutivos > max_fallos:
                 break
 
@@ -202,83 +305,87 @@ def diagrama_MC(cover, core, As, tol, h, fc0, ec0, esp, Ec,
                 dphi = max(0.50 * dphi, dphi_min)
                 phi = phi_prev + dphi
                 continue
+
             break
 
         Mi = -Mi
         fallos_consecutivos = 0
 
-        # Guardar resultados
+        # Si aparece momento negativo/cero, intentar rama residual
+        # antes de cortar.
         if Mi <= 0:
+            M_rec, c_rec = buscar_rama_residual(phi, M_vals[-1])
+
+            if M_rec is not None:
+                phi_vals.append(phi)
+                M_vals.append(M_rec)
+                c_vals.append(c_rec)
+
+                c_prev = c_rec
+                phi_prev = phi
+                phi += dphi
+                continue
+
             break
-        else:
-            phi_vals.append(phi)
-            M_vals.append(Mi)
-            c_vals.append(ci)
+
+        # Guardar punto normal
+        phi_vals.append(phi)
+        M_vals.append(Mi)
+        c_vals.append(ci)
 
         # ===============================
         # Control de picos y post-pico
         # ===============================
 
-        # Momento anterior
         if len(M_vals) >= 2:
             M_anterior = M_vals[-2]
         else:
             M_anterior = Mi
 
         if caida_final_detectada:
-            # seguir solo puntos extra
             pts_extra -= 1
-            # aumentar paso
             dphi = min(1.25 * dphi, dphi_max)
-            cambio_relativo = abs(Mi - M_anterior) / Mmax if Mmax > 0 else 0.0
-            
-            if (
-                pts_extra <= 0 or 
-                cambio_relativo <= tol_horizontal):
+
+            # No cortar por rama casi horizontal.
+            # Una meseta residual es válida y debe graficarse.
+            if pts_extra <= 0:
                 break
 
-        # Actualizar momento máximo
         if Mi > Mmax:
             Mmax = Mi
             post_pico = False
             residual = False
-
         else:
-            # Entrar a post-pico
             if Mi < limite_post_pico * Mmax:
                 post_pico = True
 
-        # Evaluar post-pico
         if post_pico and Mmax > 0:
-
-            # Caída respecto al punto anterior
             caida_1paso = (M_anterior - Mi) / Mmax
 
-            # Caída en una ventana corta
             if len(M_vals) > w:
                 M_antes_ventana = M_vals[-w]
                 caida_ventana = (M_antes_ventana - Mi) / Mmax
             else:
                 caida_ventana = 0.0
 
-            # Detectar rama residual estable
             if Mi >= limite_residual * Mmax and abs(caida_1paso) <= caida_suave:
                 residual = True
 
-            # Detectar caída brusca final
             caida_final = (
                 Mi < limite_residual * Mmax and
                 (
-                caida_1paso >= caida_brusca_1paso or
-                caida_ventana >= caida_brusca_ventana
-            ))
+                    caida_1paso >= caida_brusca_1paso or
+                    caida_ventana >= caida_brusca_ventana
+                )
+            )
 
             if caida_final:
                 caida_final_detectada = True
 
-        # Adaptacion del paso
+        # Adaptación del paso
         if len(M_vals) >= 2:
             dM = abs(M_vals[-1] - M_vals[-2]) / max(abs(Mmax), 1e-6)
+
             if dM > 0.05:
                 dphi = max(0.5 * dphi, dphi_min)
             elif dM < 0.01:
@@ -288,10 +395,48 @@ def diagrama_MC(cover, core, As, tol, h, fc0, ec0, esp, Ec,
         phi_prev = phi
         phi += dphi
 
-    return np.array(M_vals, dtype=float), np.array(phi_vals, dtype=float), np.array(c_vals, dtype=float)
-
+    return (
+        np.array(M_vals, dtype=float),
+        np.array(phi_vals, dtype=float),
+        np.array(c_vals, dtype=float)
+    )
+    
 # Postproceso M-φ
 # =========================
+def recortar_en_primera_caida(phi, M, c=None, nivel_residual=0.65, extra=3):
+    """
+    Conserva la curva solo hasta terminar la primera caída importante post-pico.
+    Funciona aunque la caída sea progresiva y no ocurra en un solo salto.
+    """
+    phi = np.asarray(phi, dtype=float)
+    M = np.asarray(M, dtype=float)
+    c = np.asarray(c, dtype=float) if c is not None else None
+
+    if len(M) < 4:
+        return phi, M, c
+
+    Mmax = np.nanmax(M)
+    if not np.isfinite(Mmax) or Mmax <= 0:
+        return phi, M, c
+
+    idx_max = int(np.nanargmax(M))
+
+    # Buscar el primer punto post-pico donde ya cayó a nivel residual.
+    post = M[idx_max + 1:]
+    candidatos = np.where(post <= nivel_residual * Mmax)[0]
+
+    if len(candidatos) == 0:
+        return phi, M, c
+
+    idx_caida = idx_max + 1 + int(candidatos[0])
+
+    # Mantener unos puntos extra para que se vea el final de la primera caída.
+    idx_fin = min(idx_caida + extra, len(M) - 1)
+
+    if c is None:
+        return phi[:idx_fin + 1], M[:idx_fin + 1], None
+
+    return phi[:idx_fin + 1], M[:idx_fin + 1], c[:idx_fin + 1]
 
 def _limpiar_curva_mc(phi, M):
     phi = np.asarray(phi, dtype=float).ravel()
@@ -762,9 +907,14 @@ def calcular_momento_curvatura(
         P_real = _f(datos_seccion, "disenar_columna_axial", P)
 
         if usa_mander_c:
-            datos_h = _datos_h_mander_confinado(datos_hormigon, datos_acero, datos_seccion)
+            datos_h = _datos_h_mander_confinado(
+                datos_hormigon,
+                datos_acero,
+                datos_seccion
+            )
             ecu_confinada = datos_h[11]
             fcc_confinada = datos_h[12]
+
     elif tipo == "viga":
         b      = _f(datos_seccion, "disenar_viga_base")
         h      = _f(datos_seccion, "disenar_viga_altura")
@@ -791,7 +941,15 @@ def calcular_momento_curvatura(
         fc0, ec0, esp, Ec,
         fy, fsu, Es, ey, esh, esu,
         P_real, datos_h, sg_cover, sg_core,
+        recuperar_rama=(tipo == "viga")
     )
+
+    if tipo == "viga":
+        phi, M, c = recortar_en_primera_caida(
+            phi, M, c,
+            nivel_residual=0.65,
+            extra=3
+        )
 
     phi_fin = phi * 100.0
     M_fin = M / 1e5
@@ -806,7 +964,7 @@ def calcular_momento_curvatura(
                 "M": float(M_fin[-1]) if len(M_fin) else None,
             },
         }
-        
+
     if ecu_confinada is not None:
         parametros_mc["ecu_confinada"] = ecu_confinada
         parametros_mc["fcc_confinada"] = fcc_confinada

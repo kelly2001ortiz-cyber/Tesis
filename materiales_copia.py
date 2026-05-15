@@ -83,9 +83,9 @@ class modelos:
         z3 = (abs_es > esh) & (abs_es <= esu)
         delta_e = abs_es[z3] - esh
         r = esu - esh
-        m = ((fsu / fy) * (30 * r + 1) ** 2 - 60 * r - 1) / (15 * r ** 2)
+        m = ((fsu / fy) * (30 * r + 1)**2 - 60 * r - 1) / (15 * r**2)
         parte1 = (m * delta_e + 2) / (60 * delta_e + 2)
-        parte2 = delta_e * (60 - m) / (2 * (30 * r + 1) ** 2)
+        parte2 = delta_e * (60 - m) / (2 * (30 * r + 1)**2)
         fs[z3] = sign[z3] * fy * (parte1 + parte2)
 
         return fs
@@ -96,11 +96,12 @@ class modelos:
         Modelo de Hognestad para hormigón no confinado.
 
         Parámetros:
-            ec  : deformación del hormigón
-            fc0 : resistencia máxima a compresión
-            ec0 : deformación en fc0
-            esp : deformación última
-
+            ec      : deformación del hormigón
+            fc0     : resistencia máxima a compresión
+            ec0     : deformación en fc0
+            esp     : deformación última
+            datos_h : datos adicionales mander confinado
+            N       : salida preferente mander confinado
         Retorna:
             fc : esfuerzo del hormigón
         """
@@ -109,7 +110,7 @@ class modelos:
 
         # Rama ascendente parabólica
         z1 = (ec <= 0) & (ec >= -ec0)
-        fc[z1] = fc0 * (2 * (-ec[z1] / ec0) - (ec[z1] / ec0) ** 2)
+        fc[z1] = fc0 * (2 * (-ec[z1] / ec0) - (ec[z1] / ec0)**2)
 
         # Rama descendente lineal
         z2 = (ec < -ec0) & (ec >= -esp)
@@ -137,20 +138,18 @@ class modelos:
         ec = np.asarray(ec, dtype=float)
         fc = np.zeros_like(ec, dtype=float)
 
-        ec00 = 2 * ec0
-
         # Módulo secante y parámetro r
         Esec = fc0 / ec0
         r = Ec / (Ec - Esec)
 
         # Rama ascendente curva
-        z1 = (ec <= 0) & (ec >= -ec00)
+        z1 = (ec <= 0) & (ec >= -2*ec0)
         x = ec[z1] / -ec0
-        fc[z1] = fc0 * (x * r) / (r - 1 + x ** r)
+        fc[z1] = fc0 * (x * r) / (r - 1 + x**r)
 
         # Rama descendente lineal
-        z2 = (ec >= -esp) & (ec < -ec00)
-        fc[z2] = fc0 * (2 * r) / (r - 1 + 2 ** r) * (esp + ec[z2]) / (esp - ec00)
+        z2 = (ec >= -esp) & (ec < -2*ec0)
+        fc[z2] = fc0 * (2 * r) / (r - 1 + 2**r) * (esp + ec[z2]) / (esp - 2*ec0)
 
         return -fc
 
@@ -183,18 +182,18 @@ class modelos:
 
             def f(sigma3):
                 sigma_oct = (sigma1 + sigma2 + sigma3) / 3
-                tau_oct_i = (((sigma1 - sigma2) ** 2 + (sigma2 - sigma3) ** 2 + (sigma3 - sigma1) ** 2) ** 0.5 ) / 3
+                tau_oct_i = (((sigma1 - sigma2)**2 + (sigma2 - sigma3)**2 + (sigma3 - sigma1) ** 2)**0.5 ) / 3
                 cos_theta = (sigma1 - sigma_oct) / (2 ** 0.5 * tau_oct_i)
                 sigmap_oct = sigma_oct / fc0
 
                 T = 0.069232 - 0.661091 * sigmap_oct - 0.049350 * sigmap_oct ** 2
                 C = 0.122965 - 1.150502 * sigmap_oct - 0.315545 * sigmap_oct ** 2
-                D = 4 * (C ** 2 - T ** 2) * cos_theta ** 2
+                D = 4 * (C**2 - T**2) * cos_theta**2
                 tau_oct_j = fc0 * C * (D / (2 * cos_theta) + (2 * T - C) * (D + 5 * T**2 - 4 * T * C)**0.5) / (D + (2 * T - C)**2)
-                
+
                 return tau_oct_i - tau_oct_j
             
-            sol = root_scalar(f, bracket=[-4*fc0, -fc0], method="brentq")
+            sol = root_scalar(f, bracket=[-4*fc0, -fc0/2], method="brentq")
             return -sol.root
 
         # Dimensiones del núcleo
@@ -203,37 +202,45 @@ class modelos:
         Ss = Sc - de
 
         # Área inefectiva
+        ## Parece quje cuando solo hay dos ramales funciona mejor no quitar diametro de varillas
         Wx = (bc - de - 2 * d_corner - (nr_y - 2) * d_edge) / (nr_y - 1)
         Wy = (dc - de - 2 * d_corner - (nr_x - 2) * d_edge) / (nr_x - 1)
-        
-        Ainef = (2 * (nr_y - 1) * (Wx ** 2) / 6) + (2 * (nr_x - 1) * Wy ** 2 / 6)
+
+        # print("Wx", Wx)
+        # print("Wy", Wy)
+
+        Ainef = (2 * (nr_y - 1) * (Wx**2) / 6) + (2 * (nr_x - 1) * Wy**2 / 6)
 
         # Área efectiva confinada
-        Ae = (bc * dc - Ainef) * (1 - Ss / (2 * bc)) * (1 - Ss / (2 * dc))
+        Ac = bc * dc
+        Ae = (Ac - Ainef) * (1 - Ss / (2 * bc)) * (1 - Ss / (2 * dc))
 
         # Cuantía longitudinal
-        AsL = np.pi * (d_corner ** 2 + (nb - 4) * d_edge ** 2 / 4)
-        Ac = bc * dc
-        pcc = AsL / Ac
-        Acc = Ac * (1 - pcc)
+        AsL = np.pi * (d_corner**2 + (nb - 4) * d_edge**2 / 4)
+        Acc = Ac - AsL
+        pcc = AsL / Acc
 
         # Coeficiente de confinamiento efectivo
         Ke = Ae / Acc
 
         # Presión lateral de confinamiento
-        Ash = np.pi * de ** 2 / 4
+        Ash = np.pi * de**2 / 4
         Ashx = nr_x * Ash
         Ashy = nr_y * Ash
 
-        psx = (Ashx * bc) / (Sc * bc * dc)
-        psy = (Ashy * dc) / (Sc * bc * dc)
+        pshx = (Ashx * bc) / (Sc * bc * dc)
+        pshy = (Ashy * dc) / (Sc * bc * dc)
 
-        flx = Ke * psx * fyh
-        fly = Ke * psy * fyh
+        fLx_eff = Ke * pshx * fyh
+        fLy_eff = Ke * pshy * fyh
 
         # Resistencia confinada
         if fcc is None:
-            fcc = fccfco(flx, fly, fc0)
+            if abs(fLx_eff - fLy_eff) <= 1e-9:
+                q = fLx_eff / fc0
+                fcc = fc0 * (-1.254 + 2.254 * np.sqrt(1 + 7.94 * q) - 2 * q)
+            else:
+                fcc = fccfco(fLx_eff, fLy_eff, fc0)
 
         if N == 3:
             return fcc
@@ -244,7 +251,7 @@ class modelos:
         r = Ec / (Ec - Esec)
 
         # Cuantía volumétrica de estribos
-        psh = psx + psy
+        psh = pshx + pshy
 
         # Convención: compresión negativa en entrada
         ec = np.asarray(ec, dtype=float)
@@ -252,7 +259,7 @@ class modelos:
 
         z1 = (ec <= 0) & (ec >= -ecu)
         x = -ec[z1] / ecc
-        fc[z1] = fcc * (x * r) / (r - 1 + x ** r)
+        fc[z1] = fcc * (x * r) / (r - 1 + x**r)
 
         if N == 2:
             return fc, psh, Acc, pcc
@@ -275,11 +282,13 @@ class modelos:
         Retorna:
             ecu : deformación última del hormigón confinado
         """
-        n = 101
+        n = 100
         # Hormigón no confinado
         ec_uc = np.empty(n)
-        ec_uc[0] = -esp
-        ec_uc[1:] = np.linspace(-2 * ec0, 0.0, n-1)
+        ec_uc = np.linspace(-2 * ec0, 0.0, n-1)
+        ec_uc = np.concatenate((ec_uc, [-esp]))
+        ec_uc.sort()
+
         fc_uc = modelos.mander_u(ec_uc, fc0, ec0, esp, Ec, datos_h, 0)
         A_uc = -simpson(fc_uc, x=ec_uc)
 
@@ -302,11 +311,12 @@ class modelos:
             A_cc = simpson(fc_cc, x=ec_cc)
 
             # Balance de energía: Ucc - Uco - Ush
-            Ush = psh * Acc * A_sh
+            Ush = Acc * psh * A_sh
             Uco = Acc * A_uc
             Ucc = Acc * A_cc
+            E = Ush - (Ucc - Uco)
 
-            return Ucc - Uco - Ush
+            return E
           
         try:
             sol = root_scalar(f, bracket=[1e-3, ecu_lim], method="brentq")
