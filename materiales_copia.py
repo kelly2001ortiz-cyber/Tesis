@@ -175,26 +175,18 @@ class modelos:
             según N
         """
         fyh, b, h, r, Sc, de, d_corner, d_edge, nb, nr_x, nr_y, ecu, fcc = datos_h
-        
+
         def fccfco(flx, fly, fc0):
-            sigma1 = -min(flx, fly)
-            sigma2 = -max(flx, fly)
+            fl1 = min(flx, fly)
+            fl2 = max(flx, fly)
 
-            def f(sigma3):
-                sigma_oct = (sigma1 + sigma2 + sigma3) / 3
-                tau_oct_i = (((sigma1 - sigma2)**2 + (sigma2 - sigma3)**2 + (sigma3 - sigma1) ** 2)**0.5 ) / 3
-                cos_theta = (sigma1 - sigma_oct) / (2 ** 0.5 * tau_oct_i)
-                sigmap_oct = sigma_oct / fc0
-
-                T = 0.069232 - 0.661091 * sigmap_oct - 0.049350 * sigmap_oct ** 2
-                C = 0.122965 - 1.150502 * sigmap_oct - 0.315545 * sigmap_oct ** 2
-                D = 4 * (C**2 - T**2) * cos_theta**2
-                tau_oct_j = fc0 * C * (D / (2 * cos_theta) + (2 * T - C) * (D + 5 * T**2 - 4 * T * C)**0.5) / (D + (2 * T - C)**2)
-
-                return tau_oct_i - tau_oct_j
+            x_med = (fl1 + fl2) / (2 * fc0)
+            r = fl1 / fl2
+            A = 6.8886 - (0.6069 + 17.275 * r) * np.exp(-4.989 * r)
+            B = 4.5 / ((5 / A) * (0.9849 - 0.6306 * np.exp(-3.8939 * r)) - 0.1) - 5
+            fcc = fc0 * (1 + A * x_med * (0.1 + 0.9 / (1 + B * x_med)))
             
-            sol = root_scalar(f, bracket=[-4*fc0, -fc0/2], method="brentq")
-            return -sol.root
+            return fcc
 
         # Dimensiones del núcleo
         dc = h - 2 * r - de
@@ -202,12 +194,13 @@ class modelos:
         Ss = Sc - de
 
         # Área inefectiva
-        ## Parece quje cuando solo hay dos ramales funciona mejor no quitar diametro de varillas
         Wx = (bc - de - 2 * d_corner - (nr_y - 2) * d_edge) / (nr_y - 1)
         Wy = (dc - de - 2 * d_corner - (nr_x - 2) * d_edge) / (nr_x - 1)
 
-        # print("Wx", Wx)
-        # print("Wy", Wy)
+        # if nr_x == 2:
+        #     Wx = (bc - de) / (nr_y - 1)
+        # if nr_y == 2:
+        #     Wy = (dc - de) / (nr_x - 1)
 
         Ainef = (2 * (nr_y - 1) * (Wx**2) / 6) + (2 * (nr_x - 1) * Wy**2 / 6)
 
@@ -236,11 +229,7 @@ class modelos:
 
         # Resistencia confinada
         if fcc is None:
-            if abs(fLx_eff - fLy_eff) <= 1e-9:
-                q = fLx_eff / fc0
-                fcc = fc0 * (-1.254 + 2.254 * np.sqrt(1 + 7.94 * q) - 2 * q)
-            else:
-                fcc = fccfco(fLx_eff, fLy_eff, fc0)
+            fcc = fccfco(fLx_eff, fLy_eff, fc0)
 
         if N == 3:
             return fcc
@@ -264,7 +253,6 @@ class modelos:
         if N == 2:
             return fc, psh, Acc, pcc
 
-        # salida por defecto: esfuerzo del hormigón
         return -fc
 
     @staticmethod
@@ -302,7 +290,6 @@ class modelos:
         fyh, b, h, r, Sc, de, d_corner, d_edge, nb, nr_x, nr_y, _, fcc = datos_h
 
         def f(ecu):
-            # actualizar datos_h con el ecu de prueba
             datos_h_ecu = (fyh, b, h, r, Sc, de, d_corner, d_edge, nb, nr_x, nr_y, ecu, fcc)
 
             # Hormigón confinado hasta ecu
@@ -314,8 +301,8 @@ class modelos:
             Ush = Acc * psh * A_sh
             Uco = Acc * A_uc
             Ucc = Acc * A_cc
+            
             E = Ush - (Ucc - Uco)
-
             return E
           
         try:

@@ -1,5 +1,5 @@
 import numpy as np
-from mc_asce import ejecutar_mc_asce as run_asce
+from mc_asce_nuevo import ejecutar_mc_asce as run_asce
 
 class CalculadoraASCE:
     @staticmethod
