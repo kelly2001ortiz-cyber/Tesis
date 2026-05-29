@@ -474,20 +474,12 @@ def extraer_parametros_caracteristicos_mc(phi, M):
         "criterio_ductilidad": "mu_phi = phi_u / phi_y.",
     }
 
-
-# ============================================================
-# API PARA EL PROGRAMA NUEVO, CONSERVANDO EL MOTOR DE 03_e
-# ============================================================
-
 MODELOS_HORMIGON = {
     "hognestad": hognestad,
     "mander_u": mander_u,
     "mander_c": mander_c,
 }
 
-# Constantes de la base antigua. Se usan solo para normalizar materiales
-# que vienen de la interfaz con mas decimales, pero que representan los
-# mismos materiales de momento_curvatura03_e.
 _ACEROS_LEGACY = [
     (4587.156, 6095.8206, 2099898.063, 0.023, 0.13),
     (4794.0877, 6725.1784, 1997536.0, 0.0138, 0.1141),
@@ -555,9 +547,6 @@ def _datos_acero_legacy(datos_acero):
     esh = _f(datos_acero, "def_inicio_endurecimiento")
     esu = _f(datos_acero, "def_ultima_acero")
 
-    # Si el material corresponde a uno de la base antigua, usar exactamente
-    # los numeros truncados de momento_curvatura03_e. Esto evita cambios de
-    # rama en zonas con multiples raices por diferencias de 1e-5 o 1e-4.
     for fy0, fsu0, Es0, esh0, esu0 in _ACEROS_LEGACY:
         if (abs(fy - fy0) <= 1e-2 and
             abs(fsu - fsu0) <= 1e-2 and
@@ -592,8 +581,6 @@ def _preparar_columna(datos_seccion, datos_fibras, eje):
     nf_x = int(_f(datos_fibras, "fibras_x"))
     nf_y = int(_f(datos_fibras, "fibras_y"))
     b, h, r, nb_x, nb_y, de, Sc, d_edge, d_corner, nr_x, nr_y, P, nb = _datos_columna(datos_seccion)
-
-    # Este orden es exactamente el del archivo 03_e.
     As_malla = barras_columna(b, h, r, de, nb_x, nb_y, d_corner, d_edge, eje, False)
     cover, core = malla(b, h, r, de, nf_x, nf_y, eje, As_malla, True)
     As = barras_columna(b, h, r, de, nb_x, nb_y, d_corner, d_edge, eje, True)
@@ -612,7 +599,6 @@ def _preparar_viga(datos_seccion, datos_fibras, eje):
     d_sup = _f(datos_seccion, "disenar_viga_diametro_superior") / 10.0
     d_inf = _f(datos_seccion, "disenar_viga_diametro_inferior") / 10.0
 
-    # Usar la misma utilidades.malla actual, descontando el acero de la zona core.
     As_malla = barras_viga(b, h, r, de, nb_sup, nb_inf, d_sup, d_inf, eje, False)
     cover, core = malla(b, h, r, de, nf_x, nf_y, eje, As_malla, True)
     As = barras_viga(b, h, r, de, nb_sup, nb_inf, d_sup, d_inf, eje, True)
@@ -627,7 +613,6 @@ def _datos_h_inicial_columna(fy, datos_base_columna, esp):
 
 
 def _datos_h_mander_columna(fc0, ec0, esp, Ec, fy, fsu, Es, ey, esh, esu, datos_base_columna):
-    # Mismo orden de momento_curvatura03_e: datos_h inicial -> buscar_ecu -> datos_h -> fcc -> datos_h final.
     datos_h = _datos_h_inicial_columna(fy, datos_base_columna, esp)
     ecu = buscar_ecu(fc0, ec0, esp, Ec, fy, fsu, Es, ey, esh, esu, datos_h)
 
@@ -670,7 +655,6 @@ def calcular_momento_curvatura(datos_hormigon, datos_acero, datos_seccion,
                 fc0, ec0, esp, Ec, fy, fsu, Es, ey, esh, esu, datos_base_columna
             )
     else:
-        # Para vigas no se usa mander_c, pero las funciones aceptan datos_h=None.
         datos_h = None
         ecu_diagrama = esp
 
@@ -748,8 +732,6 @@ def calcular_resultados_seccion(datos_hormigon, datos_acero, datos_seccion,
         resultados["di_series"] = di_series
     return resultados
 
-
-# Alias conservado para llamadas antiguas del programa nuevo.
 def diagrama_MC_unico(cover, core, As, tol, fc0, ec0, esp, Ec,
                       fy, fsu, Es, ey, esh, esu,
                       P, datos_h, sg_cover, sg_core, n=100, ecu=None):
