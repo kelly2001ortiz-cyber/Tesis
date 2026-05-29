@@ -156,7 +156,7 @@ def factor_phi(As, d, e_cu, c, fy, Es):
 def d_iteracion(b, h, r, de, nb_x, nb_y, d_corner, d_edge, 
 				fc0, e_cu, fy, Es,  eje):
 	bw, d = prop_eje(b, h, eje)
-	As = barras_columna(b, h, r, de, nb_x, nb_y, d_corner, d_edge, eje)
+	As = barras_columna(b, h, r, de, nb_x, nb_y, d_corner, d_edge, eje, True)
 
 	P, M, c = di(bw, d, As, fc0, e_cu, fy, Es)
 	P0 = compresion_pura(bw, d, As, fc0, fy) / 1000

@@ -1,3 +1,5 @@
+## esta hognestad con 0.20
+
 import numpy as np
 from scipy.optimize import root_scalar
 from scipy.integrate import simpson
@@ -83,6 +85,7 @@ class modelos:
         z3 = (abs_es > esh) & (abs_es <= esu)
         delta_e = abs_es[z3] - esh
         r = esu - esh
+
         m = ((fsu / fy) * (30 * r + 1)**2 - 60 * r - 1) / (15 * r**2)
         parte1 = (m * delta_e + 2) / (60 * delta_e + 2)
         parte2 = delta_e * (60 - m) / (2 * (30 * r + 1)**2)
@@ -114,7 +117,7 @@ class modelos:
 
         # Rama descendente lineal
         z2 = (ec < -ec0) & (ec >= -esp)
-        fc[z2] = fc0 * (1 - 0.15 * (-ec[z2] - ec0) / (esp - ec0))
+        fc[z2] = fc0 * (1 - 0.20 * (-ec[z2] - ec0) / (esp - ec0))
 
         return -fc
 
@@ -176,12 +179,20 @@ class modelos:
         """
         fyh, b, h, r, Sc, de, d_corner, d_edge, nb, nr_x, nr_y, ecu, fcc = datos_h
 
-        def fccfco(flx, fly, fc0):
+        def fcc_mander(flx, fly, fc0):
+            """
+            Calcula fcc según superficie de falla de Mander para confinamiento biaxial.
+
+            flx, fly : presiones laterales efectivas positivas
+            fc0      : resistencia no confinada positiva
+            
+            """
             fl1 = min(flx, fly)
             fl2 = max(flx, fly)
 
-            x_med = (fl1 + fl2) / (2 * fc0)
             r = fl1 / fl2
+            x_med = (fl1 + fl2) / (2 * fc0)
+            
             A = 6.8886 - (0.6069 + 17.275 * r) * np.exp(-4.989 * r)
             B = 4.5 / ((5 / A) * (0.9849 - 0.6306 * np.exp(-3.8939 * r)) - 0.1) - 5
             fcc = fc0 * (1 + A * x_med * (0.1 + 0.9 / (1 + B * x_med)))
@@ -196,11 +207,6 @@ class modelos:
         # Área inefectiva
         Wx = (bc - de - 2 * d_corner - (nr_y - 2) * d_edge) / (nr_y - 1)
         Wy = (dc - de - 2 * d_corner - (nr_x - 2) * d_edge) / (nr_x - 1)
-
-        # if nr_x == 2:
-        #     Wx = (bc - de) / (nr_y - 1)
-        # if nr_y == 2:
-        #     Wy = (dc - de) / (nr_x - 1)
 
         Ainef = (2 * (nr_y - 1) * (Wx**2) / 6) + (2 * (nr_x - 1) * Wy**2 / 6)
 
@@ -229,7 +235,7 @@ class modelos:
 
         # Resistencia confinada
         if fcc is None:
-            fcc = fccfco(fLx_eff, fLy_eff, fc0)
+            fcc = fcc_mander(fLx_eff, fLy_eff, fc0)
 
         if N == 3:
             return fcc
@@ -270,7 +276,7 @@ class modelos:
         Retorna:
             ecu : deformación última del hormigón confinado
         """
-        n = 100
+        n = 101
         # Hormigón no confinado
         ec_uc = np.empty(n)
         ec_uc = np.linspace(-2 * ec0, 0.0, n-1)
