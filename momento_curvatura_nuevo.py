@@ -14,59 +14,112 @@ barras_columna = utilidades.barras_columna
 barras_viga = utilidades.barras_viga
 malla = utilidades.malla
 
+
 def sigma_hormigon(nombre_modelo):
     nombre = nombre_modelo.lower().strip()
+
     modelos_h = {
         "hognestad": hognestad,
         "mander_u": mander_u,
         "mander_c": mander_c,
     }
+
     return modelos_h[nombre]
 
-# Resultantes del hormigon
 def resultantes_hormigon(fibras, sigma_c, e0, phi, fc0, ec0, esp, Ec, datos_h):
     yi = fibras[:, 0]
     Ai = fibras[:, 1]
-    ec = e0 - phi * yi
 
-    sigma = sigma_c(ec, fc0, ec0, esp, Ec, datos_h, 1)
+    ec = e0 - phi * yi
+    sigma, Et = sigma_c(ec, fc0, ec0, esp, Ec, datos_h, 1)
 
     N = np.sum(sigma * Ai)
     M = np.sum(sigma * Ai * yi)
 
-    return N, M
+    return N, M, Et
 
-# Resultantes del acero
 def resultantes_acero(As, sigma_s, e0, phi, fy, fsu, Es, ey, esh, esu):
     yi = As[:, 0]
     Ai = As[:, 1]
-    es = e0 - phi * yi
 
-    sigma = sigma_s(es, fy, fsu, Es, ey, esh, esu)
+    es = e0 - phi * yi
+    sigma, Et = sigma_s(es, fy, fsu, Es, ey, esh, esu, 1)
 
     N = np.sum(sigma * Ai)
     M = np.sum(sigma * Ai * yi)
 
-    return N, M
+    return N, M, Et
 
-# Suma de resultantes de los materiales
 def resultantes(e0, phi, cover, core, As, fc0, ec0, esp, Ec,
                 fy, fsu, Es, ey, esh, esu, P, datos_h,
                 sg_cover, sg_core):
-    N_uc, M_uc = resultantes_hormigon(cover, sg_cover, e0, phi, fc0, ec0, esp, Ec, datos_h)
-    N_cc, M_cc = resultantes_hormigon(core, sg_core, e0, phi, fc0, ec0, esp, Ec, datos_h)
-    N_s, M_s = resultantes_acero(As, park, e0, phi, fy, fsu, Es, ey, esh, esu)
 
-    N_int = N_uc + N_cc + N_s
+    N_cover, M_cover, Kt_cover = resultantes_hormigon(cover, sg_cover, e0, phi, fc0, ec0, esp, Ec, datos_h)
+    N_core, M_core, Kt_core = resultantes_hormigon(core, sg_core, e0, phi, fc0, ec0, esp, Ec, datos_h)
+    N_steel, M_steel, Kt_steel = resultantes_acero(As, park, e0, phi, fy, fsu, Es, ey, esh, esu)
+
+    N_int = N_cover + N_core + N_steel
+    M_total = M_cover + M_core + M_steel
+
     R = N_int - P
-    M_total = M_uc + M_cc + M_s
 
     return R, M_total
 
-# Funcion para encontrar la distancia al eje neutro
+def predecir_e0(phi_i, phi_prev, e0_prev,
+                         cover, core, As,
+                         fc0, ec0, esp, Ec,
+                         fy, fsu, Es, ey, esh, esu,
+                         datos_h, sg_cover, sg_core,
+                         e0_min=None, e0_max=None):
+
+    dphi = phi_i - phi_prev
+
+    if abs(dphi) < 1e-12:
+        return e0_prev
+
+    # Deformaciones en el estado anterior
+    ec_cover = e0_prev - phi_prev * cover[:, 0]
+    ec_core = e0_prev - phi_prev * core[:, 0]
+    es = e0_prev - phi_prev * As[:, 0]
+
+    # Tangentes de materiales
+    _, Et_cover = sg_cover(ec_cover, fc0, ec0, esp, Ec, datos_h, 1)
+    _, Et_core = sg_core(ec_core, fc0, ec0, esp, Ec, datos_h, 1)
+    _, Et_steel = park(es, fy, fsu, Es, ey, esh, esu, 1)
+
+    # Rigideces tangentes de seccion
+    EA = (
+        np.sum(Et_cover * cover[:, 1]) +
+        np.sum(Et_core * core[:, 1]) +
+        np.sum(Et_steel * As[:, 1])
+    )
+
+    EAy = (
+        np.sum(Et_cover * cover[:, 1] * cover[:, 0]) +
+        np.sum(Et_core * core[:, 1] * core[:, 0]) +
+        np.sum(Et_steel * As[:, 1] * As[:, 0])
+    )
+
+    if not np.isfinite(EA) or abs(EA) < 1e-12:
+        return e0_prev
+
+    de0 = (EAy / EA) * dphi
+
+    if not np.isfinite(de0):
+        return e0_prev
+
+    e0_pred = e0_prev + de0
+
+    if e0_min is not None and e0_max is not None:
+        e0_pred = float(np.clip(e0_pred, e0_min, e0_max))
+
+    return e0_pred
+
 def momrot(phi, cover, core, As, tol, fc0, ec0, esp, Ec,
            fy, fsu, Es, ey, esh, esu,
-           P, datos_h, sg_cover, sg_core, e0_vals, ecu):
+           P, datos_h, sg_cover, sg_core,
+           e0_ref=None,
+           usar_brent_global=False):
 
     def N_equilibrio(e0):
         N = resultantes(e0, phi, cover, core, As, fc0, ec0, esp, Ec,
@@ -89,7 +142,12 @@ def momrot(phi, cover, core, As, tol, fc0, ec0, esp, Ec,
 
         q = -phi * y_all
 
-        eps_min = -abs(ecu)
+        if datos_h is not None and len(datos_h) > 11 and datos_h[11] is not None:
+            ecu = datos_h[11]
+            eps_min = -max(abs(esp), abs(ecu))
+        else:
+            eps_min = -abs(esp)
+
         eps_max = abs(esu)
 
         e0_min = eps_min - np.max(q)
@@ -100,102 +158,91 @@ def momrot(phi, cover, core, As, tol, fc0, ec0, esp, Ec,
 
         return e0_min, e0_max
 
-    def dR_de0(e0, e0_min, e0_max):
-        rango = e0_max - e0_min
+    def dR_de0(e0):
+        ec_cover = e0 - phi * cover[:, 0]
+        ec_core = e0 - phi * core[:, 0]
+        es = e0 - phi * As[:, 0]
 
-        if rango <= 0:
-            return None
+        _, Et_cover = sg_cover(ec_cover, fc0, ec0, esp, Ec, datos_h, 1)
+        _, Et_core = sg_core(ec_core, fc0, ec0, esp, Ec, datos_h, 1)
+        _, Et_steel = park(es, fy, fsu, Es, ey, esh, esu, 1)
 
-        # Delta base para diferencia finita
-        de = max(1e-7, 1e-6 * rango)
-        de = min(de, 1e-4)
-
-        # No permitir delta excesivamente pequeño
-        if de < 1e-9:
-            return None
-
-        de = min(de, e0 - e0_min, e0_max - e0)
-
-        if de < 1e-9:
-            return None
-
-        e0_a = e0 - de
-        e0_b = e0 + de
-
-        R_a = N_equilibrio(e0_a)
-        R_b = N_equilibrio(e0_b)
-
-        if not np.isfinite(R_a) or not np.isfinite(R_b):
-            return None
-
-        Kt = (R_b - R_a) / (e0_b - e0_a)
-        
-        if not np.isfinite(Kt):
-            return None
+        Kt = (
+            np.sum(Et_cover * cover[:, 1]) +
+            np.sum(Et_core * core[:, 1]) +
+            np.sum(Et_steel * As[:, 1])
+        )
 
         return Kt
 
-    def buscar_e0_brentq(e0_min, e0_max, e0_obj):
-        if e0_min > e0_max:
-            e0_min, e0_max = e0_max, e0_min
+    def buscar_e0_brentq(a, b, npts, e0_obj):
+        if a > b:
+            a, b = b, a
 
+        e0_vals = np.linspace(a, b, npts)
+        R_vals = np.array([N_equilibrio(e0) for e0 in e0_vals], dtype=float)
+
+        roots = []
+
+        for i in range(npts - 1):
+            e1 = e0_vals[i]
+            e2 = e0_vals[i + 1]
+
+            R1 = R_vals[i]
+            R2 = R_vals[i + 1]
+
+            if not np.isfinite(R1) or not np.isfinite(R2):
+                continue
+
+            if abs(R1) <= tol:
+                roots.append(e1)
+                continue
+
+            if abs(R2) <= tol:
+                roots.append(e2)
+                continue
+
+            if R1 * R2 < 0.0:
+                try:
+                    sol = root_scalar(
+                        N_equilibrio,
+                        bracket=[e1, e2],
+                        method="brentq"
+                    )
+
+                    if sol.converged:
+                        r = sol.root
+                        if abs(N_equilibrio(r)) <= tol:
+                            roots.append(r)
+
+                except ValueError:
+                    pass
+
+        if not roots:
+            return None
+
+        # Eliminar raices repetidas
+        roots = np.array(sorted(roots), dtype=float)
+        roots_unicas = [roots[0]]
+
+        for r in roots[1:]:
+            if abs(r - roots_unicas[-1]) > 1e-12:
+                roots_unicas.append(r)
+
+        roots_unicas = np.array(roots_unicas, dtype=float)
+
+        root = float(roots_unicas[np.argmin(np.abs(roots_unicas - e0_obj))])
+
+        return root
+
+    def buscar_e0_brentq_local(e0_min, e0_max, e0_obj):
         rango = e0_max - e0_min
+        
+        if rango <= 0.0:
+            return None
+
         e0_obj = float(np.clip(e0_obj, e0_min, e0_max))
 
-        def buscar_en_intervalo(a, b, npts):
-            e0_vals = np.linspace(a, b, npts)
-            R_vals = np.fromiter((N_equilibrio(e0) for e0 in e0_vals), dtype=float, count=npts)
-            
-            roots = []
-            
-            for i in range(npts - 1):
-                e0_1 = e0_vals[i]
-                e0_2 = e0_vals[i + 1]
-
-                R1 = R_vals[i]
-                R2 = R_vals[i + 1]
-
-                if not np.isfinite(R1) or not np.isfinite(R2):
-                    continue
-
-                if abs(R1) < tol:
-                    roots.append(e0_1)
-                    continue
-
-                if abs(R2) < tol:
-                    roots.append(e0_2)
-                    continue
-
-                if R1 * R2 < 0.0:
-                    try:
-                        sol = root_scalar(
-                            N_equilibrio,
-                            bracket=[e0_1, e0_2],
-                            method="brentq",
-                        )
-
-                        if sol.converged:
-                            R_sol = N_equilibrio(sol.root)
-                            if abs(R_sol) <= tol:
-                                roots.append(sol.root)
-
-                    except ValueError:
-                        pass
-
-            if not roots:
-                return None
-
-            # Eliminar raices repetidas
-            roots = sorted(roots)
-            filtradas = []
-
-            for x in roots:
-                if not filtradas or abs(x - filtradas[-1]) > 1e-9:
-                    filtradas.append(x)
-
-            return filtradas
-
-        # Buscar e0 en intervalos
         ventanas = [
             0.01 * rango,
             0.02 * rango,
@@ -204,27 +251,21 @@ def momrot(phi, cover, core, As, tol, fc0, ec0, esp, Ec,
             0.20 * rango,
             0.40 * rango,
             0.70 * rango,
-            1.00 * rango
         ]
 
         for ancho in ventanas:
             a = max(e0_min, e0_obj - ancho)
             b = min(e0_max, e0_obj + ancho)
 
-            roots = buscar_en_intervalo(a, b, npts=101)
+            root = buscar_e0_brentq(a, b, 101, e0_obj)
 
-            if roots:
-                root = min(roots, key=lambda x: abs(x - e0_obj))
+            if root is not None:
                 return root
 
-        # Respaldo final en el rango completo
-        roots = buscar_en_intervalo(e0_min, e0_max, npts=501)
-        if not roots:
-            return None
+        return None
 
-        root = min(roots, key=lambda x: abs(x - e0_obj))
-
-        return root
+    def buscar_e0_brentq_global(e0_min, e0_max, e0_obj):
+        return buscar_e0_brentq(e0_min, e0_max, 501, e0_obj)
 
     def buscar_e0_newton(e0_min, e0_max, e0_obj):
         rango = e0_max - e0_min
@@ -232,25 +273,23 @@ def momrot(phi, cover, core, As, tol, fc0, ec0, esp, Ec,
         if rango <= 0:
             return None
 
-        e0_obj = float(np.clip(e0_obj, e0_min, e0_max))
-        e0 = e0_obj
+        e0 = float(np.clip(e0_obj, e0_min, e0_max))
 
         max_iter = 100
         max_step = 0.01 * rango
 
-        for _ in range(max_iter):
-
+        for _itr in range(max_iter):
             R = N_equilibrio(e0)
-            
+
             if not np.isfinite(R):
                 break
 
             if abs(R) <= tol:
                 return e0
 
-            Kt = dR_de0(e0, e0_min, e0_max)
+            Kt = dR_de0(e0)
 
-            if Kt is None or not np.isfinite(Kt) or abs(Kt) < 1e-14:
+            if Kt is None or not np.isfinite(Kt) or abs(Kt) < 1e-12:
                 break
 
             de0 = -R / Kt
@@ -260,6 +299,9 @@ def momrot(phi, cover, core, As, tol, fc0, ec0, esp, Ec,
 
             de0 = float(np.clip(de0, -max_step, max_step))
 
+            if abs(de0) < 1e-12:
+                break
+
             R_abs = abs(R)
             aceptado = False
 
@@ -267,13 +309,14 @@ def momrot(phi, cover, core, As, tol, fc0, ec0, esp, Ec,
                 e0_trial = e0 + de0
                 e0_trial = float(np.clip(e0_trial, e0_min, e0_max))
 
-                if abs(e0_trial - e0) < 1e-14:
+                if abs(e0_trial - e0) < 1e-12:
                     break
-                
+
                 R_trial = N_equilibrio(e0_trial)
-                
+
                 if not np.isfinite(R_trial):
-                    break
+                    de0 *= 0.5
+                    continue
 
                 if abs(R_trial) <= tol:
                     return e0_trial
@@ -288,22 +331,29 @@ def momrot(phi, cover, core, As, tol, fc0, ec0, esp, Ec,
             if not aceptado:
                 break
 
-        if abs(N_equilibrio(e0)) <= tol:
+        R_final = N_equilibrio(e0)
+
+        if np.isfinite(R_final) and abs(R_final) <= tol:
             return e0
 
-        # Respaldo con brentq
-        e0_brent = buscar_e0_brentq(e0_min, e0_max, e0_obj)
-
-        return e0_brent
+        return None
 
     e0_min, e0_max = limites_e0()
 
-    if len(e0_vals) == 0:
+    if e0_ref is None:
         e0_obj = 0.0
     else:
-        e0_obj = e0_vals[-1]
+        e0_obj = e0_ref
+
+    e0_obj = float(np.clip(e0_obj, e0_min, e0_max))
 
     e0 = buscar_e0_newton(e0_min, e0_max, e0_obj)
+
+    if e0 is None:
+        e0 = buscar_e0_brentq_local(e0_min, e0_max, e0_obj)
+
+    if e0 is None and usar_brent_global:
+        e0 = buscar_e0_brentq_global(e0_min, e0_max, e0_obj)
 
     if e0 is None:
         return None, None
@@ -312,49 +362,97 @@ def momrot(phi, cover, core, As, tol, fc0, ec0, esp, Ec,
 
     return M, e0
 
-# Funcion para obtener el diagrama momento-curvatura
 def diagrama_MC(cover, core, As, tol, fc0, ec0, esp, Ec,
                 fy, fsu, Es, ey, esh, esu,
-                P, datos_h, sg_cover, sg_core, n, ecu):
-    
-    phi_vals = [0.0]
-    M_vals = [0.0]
-    e0_vals = [0.0]
-    c_vals = [0.0]
+                P, datos_h, sg_cover, sg_core, n,
+                phi_max=None,
+                usar_brent_global=False):
 
-    e0_prev = None
-    ys_max = max(As[:, 0])
-    phi_max = esu / ys_max
+    # Curvatura maxima predeterminada
+    if phi_max is None:
+        y_max = np.max(np.abs(As[:, 0]))
+        phi_max = esu / y_max
 
+    # Curvaturas calculadas
     a = phi_max / ((n - 1) * (1 + (n - 2) / 2 * (0.5)))
     b = 0.5 * a
-    phi = [0.0]
-    
+
+    phi_vec = [0.0]
+
     for i in range(1, n):
-        phi.append(round(i * a + i * (i - 1) / 2 * b, 100))
+        phi_i = i * a + i * (i - 1) / 2 * b
+        phi_vec.append(phi_i)
 
-    for i in range(n-1):
-        phi_i = phi[i+1]
+    # Primer punto en phi = 0
+    M_0, e0_0 = momrot(
+        0.0,
+        cover, core, As, tol, fc0, ec0, esp, Ec,
+        fy, fsu, Es, ey, esh, esu,
+        P, datos_h, sg_cover, sg_core,
+        e0_ref=0.0,
+        usar_brent_global=True
+    )
 
-        M_i, e0_i = momrot(phi_i, cover, core, As, tol, fc0, ec0, esp, Ec,
-                        fy, fsu, Es, ey, esh, esu,
-                        P, datos_h, sg_cover, sg_core, e0_vals, ecu)
+    # Inicializar resultados
+    phi_vals = [0.0]
+    M_vals = [-M_0]
+    e0_vals = [e0_0]
+    c_vals = [0.0]
+    es_vals = [0.0]
+    ec_vals = [0.0]
+
+    # Si la malla no es confinada, core viene vacio.
+    # Para los valores auxiliares de deformacion de hormigon se usa cover.
+    if core is not None and len(core) > 0:
+        y_hormigon_ref = float(np.max(core[:, 0]))
+    else:
+        y_hormigon_ref = float(np.max(cover[:, 0]))
+
+    # Recorrido incremental
+    for phi_i in phi_vec[1:]:
+
+        phi_prev = phi_vals[-1]
+        e0_prev = e0_vals[-1]
+
+        e0_ref = predecir_e0(
+            phi_i, phi_prev, e0_prev,
+            cover, core, As,
+            fc0, ec0, esp, Ec,
+            fy, fsu, Es, ey, esh, esu,
+            datos_h, sg_cover, sg_core
+        )
+
+        M_i, e0_i = momrot(
+            phi_i,
+            cover, core, As, tol, fc0, ec0, esp, Ec,
+            fy, fsu, Es, ey, esh, esu,
+            P, datos_h, sg_cover, sg_core,
+            e0_ref=e0_ref,
+            usar_brent_global=usar_brent_global
+        )
 
         if M_i is None:
-            continue
+            break
 
         M_i = -M_i
-        if M_i <= 0:
-            continue
 
-        # Guardar resultados
-        M_vals.append(M_i)
+        if M_i < 0.0:
+            break
+
         phi_vals.append(phi_i)
-        e0_vals.append(e0_i)
+        M_vals.append(M_i)
         c_vals.append(e0_i/phi_i)
+        e0_vals.append(e0_i)
+        es_vals.append(e0_i + phi_i * max(As[:, 0]))
+        ec_vals.append(e0_i - phi_i * y_hormigon_ref)
 
-    return np.array(M_vals, dtype=float), np.array(phi_vals, dtype=float), np.array(c_vals, dtype=float)
 
+    return (
+        np.array(M_vals, dtype=float),
+        np.array(phi_vals, dtype=float),
+        np.array(c_vals, dtype=float),
+    )
+    
 # ============================================================
 # PARAMETROS CARACTERISTICOS DE LA CURVA M-PHI
 # ============================================================
@@ -525,14 +623,15 @@ def _sigma_hormigon_seguro(nombre_modelo):
         raise ValueError(f"Modelo de hormigon no valido: {nombre_modelo}") from exc
 
 
+def _malla_confinada(modelo_cover, modelo_core):
+
+    modelo_cover = _normalizar_texto(modelo_cover)
+    modelo_core = _normalizar_texto(modelo_core)
+
+    return modelo_cover == "mander_c" or modelo_core == "mander_c"
+
+
 def _datos_hormigon_legacy(datos_hormigon):
-    """
-    momento_curvatura03_e no usaba Ec/ec0 ingresados por el usuario;
-    los calculaba con crear_hormigon():
-        Ec = 15100 * sqrt(fc0)
-        ec0 = 2*fc0/Ec
-    Por eso se hace lo mismo aqui para obtener los mismos resultados.
-    """
     fc0 = _f(datos_hormigon, "esfuerzo_fc")
     esp = _f(datos_hormigon, "def_ultima_sin_confinar")
     Ec = 15100.0 * fc0 ** 0.5
@@ -577,17 +676,17 @@ def _datos_columna(datos_seccion):
     return b, h, r, nb_x, nb_y, de, Sc, d_edge, d_corner, nr_x, nr_y, P, nb
 
 
-def _preparar_columna(datos_seccion, datos_fibras, eje):
+def _preparar_columna(datos_seccion, datos_fibras, eje, conf_malla):
     nf_x = int(_f(datos_fibras, "fibras_x"))
     nf_y = int(_f(datos_fibras, "fibras_y"))
     b, h, r, nb_x, nb_y, de, Sc, d_edge, d_corner, nr_x, nr_y, P, nb = _datos_columna(datos_seccion)
     As_malla = barras_columna(b, h, r, de, nb_x, nb_y, d_corner, d_edge, eje, False)
-    cover, core = malla(b, h, r, de, nf_x, nf_y, eje, As_malla, True)
+    cover, core = malla(b, h, r, de, nf_x, nf_y, eje, As_malla, conf_malla, True)
     As = barras_columna(b, h, r, de, nb_x, nb_y, d_corner, d_edge, eje, True)
     return cover, core, As, P, (b, h, r, de, Sc, d_corner, d_edge, nb, nr_x, nr_y)
 
 
-def _preparar_viga(datos_seccion, datos_fibras, eje):
+def _preparar_viga(datos_seccion, datos_fibras, eje, conf_malla=False):
     nf_x = int(_f(datos_fibras, "fibras_x"))
     nf_y = int(_f(datos_fibras, "fibras_y"))
     b = _f(datos_seccion, "disenar_viga_base")
@@ -600,14 +699,14 @@ def _preparar_viga(datos_seccion, datos_fibras, eje):
     d_inf = _f(datos_seccion, "disenar_viga_diametro_inferior") / 10.0
 
     As_malla = barras_viga(b, h, r, de, nb_sup, nb_inf, d_sup, d_inf, eje, False)
-    cover, core = malla(b, h, r, de, nf_x, nf_y, eje, As_malla, True)
+    cover, core = malla(b, h, r, de, nf_x, nf_y, eje, As_malla, conf_malla, True)
     As = barras_viga(b, h, r, de, nb_sup, nb_inf, d_sup, d_inf, eje, True)
     return cover, core, As, 0.0, None
 
 
 def _datos_h_inicial_columna(fy, datos_base_columna, esp):
     b, h, r, de, Sc, d_corner, d_edge, nb, nr_x, nr_y = datos_base_columna
-    ecu = esp
+    ecu = None
     fcc = None
     return (fy, b, h, r, Sc, de, d_corner, d_edge, nb, nr_x, nr_y, ecu, fcc)
 
@@ -638,10 +737,16 @@ def calcular_momento_curvatura(datos_hormigon, datos_acero, datos_seccion,
     if tipo == "viga" and (modelo_cover == "mander_c" or modelo_core == "mander_c"):
         raise ValueError("Mander confinado no esta habilitado para vigas en esta integracion.")
 
+    conf_malla = _malla_confinada(modelo_cover, modelo_core)
+
     if tipo == "columna":
-        cover, core, As, P_real, datos_base_columna = _preparar_columna(datos_seccion, datos_fibras, eje)
+        cover, core, As, P_real, datos_base_columna = _preparar_columna(
+            datos_seccion, datos_fibras, eje, conf_malla
+        )
     else:
-        cover, core, As, P_real, datos_base_columna = _preparar_viga(datos_seccion, datos_fibras, eje)
+        cover, core, As, P_real, datos_base_columna = _preparar_viga(
+            datos_seccion, datos_fibras, eje, conf_malla
+        )
         P_real = P
 
     datos_h = None
@@ -664,7 +769,7 @@ def calcular_momento_curvatura(datos_hormigon, datos_acero, datos_seccion,
         P_real, datos_h,
         _sigma_hormigon_seguro(modelo_cover),
         _sigma_hormigon_seguro(modelo_core),
-        n, ecu_diagrama
+        n
     )
 
     phi_fin = phi * 100.0
@@ -735,10 +840,8 @@ def calcular_resultados_seccion(datos_hormigon, datos_acero, datos_seccion,
 def diagrama_MC_unico(cover, core, As, tol, fc0, ec0, esp, Ec,
                       fy, fsu, Es, ey, esh, esu,
                       P, datos_h, sg_cover, sg_core, n=100, ecu=None):
-    if ecu is None:
-        ecu = esp if datos_h is None or len(datos_h) <= 11 or datos_h[11] is None else datos_h[11]
     return diagrama_MC(
         cover, core, As, tol, fc0, ec0, esp, Ec,
         fy, fsu, Es, ey, esh, esu,
-        P, datos_h, sg_cover, sg_core, n, ecu
+        P, datos_h, sg_cover, sg_core, n
     )

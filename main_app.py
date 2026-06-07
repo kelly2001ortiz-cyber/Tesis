@@ -163,7 +163,11 @@ class VentanaPrincipal(QMainWindow):
             "descripcion_ingeniero": "Luis Flor",
             "descripcion_seccion": "C40X40",
         }
-        self.capas_fibras_data = {"fibras_x": "10", "fibras_y": "10"}
+        self.capas_fibras_data = {
+            "fibras_x": "10",
+            "fibras_y": "10",
+            "confinado": False,
+        }
         
         self.asce_data = {
             "long_viga_asce": "6",
@@ -275,6 +279,7 @@ class VentanaPrincipal(QMainWindow):
         self.seccion_viga_data = getd(payload, "seccion_viga_data", self.seccion_viga_data)
         self.proyecto_data = getd(payload, "proyecto_data", self.proyecto_data)
         self.capas_fibras_data = getd(payload, "capas_fibras_data", self.capas_fibras_data)
+        self.capas_fibras_data.setdefault("confinado", False)
         self.asce_data = getd(payload, "asce_data", self.asce_data)
 
         # Refrescar campos visibles
@@ -399,12 +404,15 @@ class VentanaPrincipal(QMainWindow):
     def mostrar_fibras(self):
         """Dibuja la sección de fibras dentro de ui.cuadricula_seccion SIN cambiar de página."""
         if self.ui.actionCapas_de_Fibras_2.isChecked():
+            seccion_actual = (self.ui.seccion_analisis.currentText() or "").strip().lower()
+            datos_seccion = self.seccion_viga_data if seccion_actual == "viga" else self.seccion_columna_data
+
             visor = class_mostrar_fibras(
                 self.ui,
                 self.seccion_columna_data,
                 self.seccion_viga_data,
                 self.capas_fibras_data,
-                self.ui.direccion_analisis,
+                datos_seccion,
             )
             visor.mostrar()
             self._visor_fibras = visor  # mantener referencia

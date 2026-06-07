@@ -3,37 +3,37 @@ from shapely.geometry import Point, box
 
 class utilidades:
     """
-    Utilidades geométricas de secciones de concreto reforzado.
+    Utilidades geometricas de secciones de concreto reforzado.
 
-    Métodos disponibles:
-        - barras_columna: coordenadas y áreas de barras en columnas
-        - barras_viga: coordenadas y áreas de barras en vigas
-        - malla: discretización de la sección en fibras
+    Metodos disponibles:
+        - barras_columna : coordenadas y areas de barras en columnas
+        - barras_viga    : coordenadas y areas de barras en vigas
+        - malla          : discretizacion de la seccion en fibras
 
     Coordenadas:
         x = 0 en el centro de la seccion
         y = 0 en el centro de la seccion
         x positivo hacia la derecha
         y positivo hacia arriba
-
     """
 
     @staticmethod
     def barras_columna(b, h, r, de, nb_x, nb_y, d_corner, d_edge, eje, agrupar):
         """
-        Genera coordenadas y áreas de barras individuales 2D y agrupadas
+        Genera coordenadas y areas de barras individuales 2D y agrupadas
         para una columna rectangular.
 
-        Parámetros:
-            b        : ancho de la sección
-            h        : altura de la sección
+        Parametros:
+            b        : ancho de la seccion
+            h        : altura de la seccion
             r        : recubrimiento libre
-            de       : diámetro de estribos
-            nb_x      : número de barras en dirección x
-            nb_y      : número de barras en dirección y
-            d_corner : diámetro de barras de esquina
-            d_edge   : diámetro de barras laterales
-            eje      : eje de análisis ("x" o "y")
+            de       : diametro de estribos
+            nb_x     : numero de barras en direccion x
+            nb_y     : numero de barras en direccion y
+            d_corner : diametro de barras de esquina
+            d_edge   : diametro de barras laterales
+            eje      : eje de analisis ("x" o "y")
+            agrupar  : permte agrupar fibras dependiendo del eje
 
         Retorna:
             Si agrupar=False:
@@ -41,11 +41,11 @@ class utilidades:
 
             Si agrupar=True:
                 retorna As = array [coord_i, A_i]
-
         """
+
         eje = eje.lower()
         
-        # Área de una barra
+        # Area de una barra
         Ab_corner = np.pi * d_corner**2 / 4
         Ab_edge = np.pi * d_edge**2 / 4
 
@@ -77,7 +77,7 @@ class utilidades:
 
         # Barras intermedias en caras inferior y superior
         if nb_x > 2:
-            xs = np.linspace(x_izq_edge, x_der_edge, nb_x)[1:-1]
+            xs = np.linspace(x_izq_corner, x_der_corner, nb_x)[1:-1]
 
             for x in xs:
                 barras.append([x, y_bot_edge, Ab_edge])
@@ -85,7 +85,7 @@ class utilidades:
 
         # Barras intermedias en caras izquierda y derecha
         if nb_y > 2:
-            ys = np.linspace(y_bot_edge, y_top_edge, nb_y)[1:-1]
+            ys = np.linspace(y_bot_corner, y_top_corner, nb_y)[1:-1]
 
             for y in ys:
                 barras.append([x_izq_edge,  y, Ab_edge])
@@ -115,18 +115,19 @@ class utilidades:
     @staticmethod
     def barras_viga(b, h, r, de, nb_sup, nb_inf, d_sup, d_inf, eje, agrupar):
         """
-        Genera coordenadas y áreas de barras individuales 2D y agrupadas
+        Genera coordenadas y areas de barras individuales 2D y agrupadas
         para una viga rectangular.
 
-        Parámetros:
-            h      : altura de la sección
-            r      : recubrimiento libre
-            de     : diámetro de estribos
-            nb_sup : número de barras superiores
-            nb_inf : número de barras inferiores
-            d_sup  : diámetro de barras superiores
-            d_inf  : diámetro de barras inferiores
-            eje      : eje de análisis ("x" o "y")
+        Parametros:
+            h       : altura de la seccion
+            r       : recubrimiento libre
+            de      : diametro de estribos
+            nb_sup  : numero de barras superiores
+            nb_inf  : numero de barras inferiores
+            d_sup   : diametro de barras superiores
+            d_inf   : diametro de barras inferiores
+            eje     : eje de analisis ("x" o "y")
+            agrupar : permte agrupar fibras dependiendo del eje
 
         Retorna:
             Si agrupar=False:
@@ -134,11 +135,11 @@ class utilidades:
 
             Si agrupar=True:
                 retorna As = array [coord_i, A_i]
-
         """
+
         eje = eje.lower()
 
-        # Área de una barra
+        # Area de una barra
         Ab_sup = np.pi * d_sup**2 / 4
         Ab_inf = np.pi * d_inf**2 / 4     
 
@@ -187,178 +188,257 @@ class utilidades:
         As = np.array(sorted(dic.items(), reverse=True), dtype=float)
 
         return As
-        
+
     @staticmethod
-    def malla(b, h, r, de, nf_x, nf_y, eje, barras_2d, agrupar):
+    def malla(b, h, r, de, nf_x, nf_y, eje, barras_2d, conf, agrupar):
         """
         Discretiza la sección rectangular en fibras 2D de recubrimiento y núcleo
-        y agrupa áreas por coordenada del eje de análisis.
+        y agrupa areas por coordenada del eje de análisis.
 
         Parámetros:
-            b    : ancho de la sección
-            h    : altura de la sección
-            r    : recubrimiento libre
-            de   : diámetro de estribos
-            nf_x : número de divisiones base en x
-            nf_y : número de divisiones base en y
-            eje  : eje de análisis ("x" o "y")
-
-        Coordenadas:
-            x = 0 en el centro de la seccion, positivo hacia la derecha
-            y = 0 en el centro de la seccion, positivo hacia arriba
+            b       : ancho de la seccion
+            h       : altura de la seccion
+            r       : recubrimiento libre
+            de      : diámetro de estribos
+            nf_x    : numero de divisiones base en x
+            nf_y    : numero de divisiones base en y
+            eje     : eje de análisis ("x" o "y")
+            conf    : eleguir entre nucleo confinado o no
+            agrupar : permte agrupar fibras dependiendo del eje
 
         Retorna:
-            Si agrupar=True:
-                cover, core : arrays [coord_i, A_i]
-
             Si agrupar=False:
-                cover_2d, core_2d : arrays [x_i, y_i, A_i]
+                retorna cover/core = array [x_i, y_i, A_i]
 
+            Si agrupar=True:
+                retorna cover/core = array [coord_i, A_i]
+
+            Si conf=False:
+                retorna cover
+
+            Si conf=True:
+                retorna cover y core
         """
-        buffer_resolution=32
-        tol_area=1e-6
-
+        
         eje = eje.lower()
 
-        # Geometria centrada
-        rec = r + de / 2
+        tol_area = 1e-6
+        buffer_resolution = 8
 
+        # Geometria centrada
         x_min = -b / 2
         x_max =  b / 2
         y_min = -h / 2
         y_max =  h / 2
 
-        x_core_min = x_min + rec
-        x_core_max = x_max - rec
-        y_core_min = y_min + rec
-        y_core_max = y_max - rec
+        rec_cl = r + de / 2.0
 
-        # Bordes de malla
+        x_core_min = x_min + rec_cl
+        x_core_max = x_max - rec_cl
+        y_core_min = y_min + rec_cl
+        y_core_max = y_max - rec_cl
+
+        # Malla base vectorizada
         x_edges = np.linspace(x_min, x_max, nf_x + 1)
         y_edges = np.linspace(y_min, y_max, nf_y + 1)
 
-        x_edges = np.unique(np.concatenate((x_edges, [x_core_min, x_core_max])))
-        y_edges = np.unique(np.concatenate((y_edges, [y_core_min, y_core_max])))
+        x1 = x_edges[:-1]
+        x2 = x_edges[1:]
+        y1 = y_edges[:-1]
+        y2 = y_edges[1:]
 
-        # Crear fibras 2D : [x_c, y_c, A, x1, x2, y1, y2]
-        cover_list = []
-        core_list = []
+        X1, Y1 = np.meshgrid(x1, y1, indexing="ij")
+        X2, Y2 = np.meshgrid(x2, y2, indexing="ij")
 
-        for i in range(len(x_edges) - 1):
-            x1 = x_edges[i]
-            x2 = x_edges[i + 1]
-            xc = 0.5 * (x1 + x2)
-            dx = x2 - x1
+        X1 = X1.ravel()
+        X2 = X2.ravel()
+        Y1 = Y1.ravel()
+        Y2 = Y2.ravel()
 
-            for j in range(len(y_edges) - 1):
-                y1 = y_edges[j]
-                y2 = y_edges[j + 1]
-                yc = 0.5 * (y1 + y2)
-                dy = y2 - y1
+        A_cell = (X2 - X1) * (Y2 - Y1)
+        Xc_cell = 0.5 * (X1 + X2)
+        Yc_cell = 0.5 * (Y1 + Y2)
 
-                A = dx * dy
+        # Interseccion analitica con el nucleo
+        Xi1 = np.maximum(X1, x_core_min)
+        Xi2 = np.minimum(X2, x_core_max)
+        Yi1 = np.maximum(Y1, y_core_min)
+        Yi2 = np.minimum(Y2, y_core_max)
 
-                es_core = (
-                    x1 >= x_core_min and x2 <= x_core_max and
-                    y1 >= y_core_min and y2 <= y_core_max
-                )
+        dx_core = np.maximum(0.0, Xi2 - Xi1)
+        dy_core = np.maximum(0.0, Yi2 - Yi1)
 
-                fibra = [xc, yc, A, x1, x2, y1, y2]
+        A_core = dx_core * dy_core
 
-                if es_core:
-                    core_list.append(fibra)
-                else:
-                    cover_list.append(fibra)
+        if conf:
+            mask_core = A_core > tol_area
+        else:
+            A_core = np.zeros_like(A_cell)
+            mask_core = np.zeros_like(A_cell, dtype=bool)
 
-        cover_2d = np.array(cover_list, dtype=float)
-        core_2d = np.array(core_list, dtype=float)
+        Xc_core = 0.5 * (Xi1 + Xi2)
+        Yc_core = 0.5 * (Yi1 + Yi2)
 
-        # Geometrias de fibras del nucleo
-        core_boxes = [
-            box(row[3], row[5], row[4], row[6])
-            for row in core_2d
-        ]
+        core_2d = np.column_stack((
+            Xc_core[mask_core],
+            Yc_core[mask_core],
+            A_core[mask_core],
+            Xi1[mask_core],
+            Xi2[mask_core],
+            Yi1[mask_core],
+            Yi2[mask_core],
+        ))
 
-        # Descontar barras del nucleo
-        for xs, ys, As_barra in barras_2d:
+        # Cover equivalente por celda
+        A_cover = A_cell - A_core
+        mask_cover = A_cover > tol_area
 
-            rb = np.sqrt(As_barra / np.pi)
+        Qx_cover = A_cell * Xc_cell - A_core * Xc_core
+        Qy_cover = A_cell * Yc_cell - A_core * Yc_core
 
-            try:
-                barra_geom = Point(xs, ys).buffer(rb, quad_segs=buffer_resolution)
-            except TypeError:
-                barra_geom = Point(xs, ys).buffer(rb, resolution=buffer_resolution)
+        Xc_cover = np.zeros_like(A_cover)
+        Yc_cover = np.zeros_like(A_cover)
 
-            # Fibras candidatas por caja envolvente
-            idxs = np.where(
-                (core_2d[:, 4] >= xs - rb) &
-                (core_2d[:, 3] <= xs + rb) &
-                (core_2d[:, 6] >= ys - rb) &
-                (core_2d[:, 5] <= ys + rb)
-            )[0]
+        Xc_cover[mask_cover] = Qx_cover[mask_cover] / A_cover[mask_cover]
+        Yc_cover[mask_cover] = Qy_cover[mask_cover] / A_cover[mask_cover]
 
-            candidatos = []
+        cover_2d = np.column_stack((
+            Xc_cover[mask_cover],
+            Yc_cover[mask_cover],
+            A_cover[mask_cover],
+            X1[mask_cover],
+            X2[mask_cover],
+            Y1[mask_cover],
+            Y2[mask_cover],
+        ))
 
-            for k in idxs:
-                inter = core_boxes[k].intersection(barra_geom)
+        if cover_2d.size == 0:
+            cover_2d = np.empty((0, 7), dtype=float)
 
-                if inter.is_empty:
+        if core_2d.size == 0:
+            core_2d = np.empty((0, 7), dtype=float)
+
+        # Descontar barras longitudinales
+        fibra_descuento = core_2d if conf else cover_2d
+
+        if fibra_descuento.size > 0 and barras_2d is not None and len(barras_2d) > 0:
+
+            # Precalcular cajas Shapely una sola vez
+            fibra_boxes = [
+                box(row[3], row[5], row[4], row[6])
+                for row in fibra_descuento
+            ]
+
+            for xs, ys, As_barra in barras_2d:
+
+                if As_barra <= 0.0:
                     continue
 
-                A_rem = inter.area
+                rb = np.sqrt(As_barra / np.pi)
 
-                if A_rem <= tol_area:
+                try:
+                    barra_geom = Point(xs, ys).buffer(
+                        rb,
+                        quad_segs=buffer_resolution
+                    )
+                except TypeError:
+                    barra_geom = Point(xs, ys).buffer(
+                        rb,
+                        resolution=buffer_resolution
+                    )
+
+                idxs = np.where(
+                    (fibra_descuento[:, 2] > tol_area) &
+                    (fibra_descuento[:, 4] >= xs - rb) &
+                    (fibra_descuento[:, 3] <= xs + rb) &
+                    (fibra_descuento[:, 6] >= ys - rb) &
+                    (fibra_descuento[:, 5] <= ys + rb)
+                )[0]
+
+                if len(idxs) == 0:
                     continue
 
-                c_rem = inter.centroid
-                candidatos.append((k, c_rem.x, c_rem.y, A_rem))
+                cortes = []
 
-            A_total_rem = sum(c[3] for c in candidatos)
+                for k in idxs:
+                    inter = fibra_boxes[k].intersection(barra_geom)
 
-            # Normalizar para que el area total descontada sea igual a As_barra
-            factor = As_barra / A_total_rem
+                    if inter.is_empty:
+                        continue
 
-            for k, x_rem, y_rem, A_rem in candidatos:
-                A_rem *= factor
+                    A_int = inter.area
 
-                xc = core_2d[k, 0]
-                yc = core_2d[k, 1]
-                Ac = core_2d[k, 2]
+                    if A_int <= tol_area:
+                        continue
 
-                if A_rem >= Ac - tol_area:
-                    core_2d[k, 2] = 0
+                    c_int = inter.centroid
+                    cortes.append((k, c_int.x, c_int.y, A_int))
+
+                if not cortes:
                     continue
-                
-                Ac_new = Ac - A_rem
-                xc_new = (Ac * xc - A_rem * x_rem) / Ac_new
-                yc_new = (Ac * yc - A_rem * y_rem) / Ac_new
 
-                core_2d[k, 0] = xc_new
-                core_2d[k, 1] = yc_new
-                core_2d[k, 2] = Ac_new
+                A_int_total = sum(c[3] for c in cortes)
+
+                if A_int_total <= tol_area:
+                    continue
+
+                # Normalizar para descontar exactamente el area de la barra
+                factor = As_barra / A_int_total
+
+                for k, x_int, y_int, A_int in cortes:
+
+                    Ac = fibra_descuento[k, 2]
+
+                    if Ac <= tol_area:
+                        continue
+
+                    A_rem = A_int * factor
+                    A_rem = min(A_rem, Ac)
+
+                    if A_rem >= Ac - tol_area:
+                        fibra_descuento[k, 2] = 0.0
+                        continue
+
+                    xc = fibra_descuento[k, 0]
+                    yc = fibra_descuento[k, 1]
+
+                    Ac_new = Ac - A_rem
+
+                    fibra_descuento[k, 0] = (Ac * xc - A_rem * x_int) / Ac_new
+                    fibra_descuento[k, 1] = (Ac * yc - A_rem * y_int) / Ac_new
+                    fibra_descuento[k, 2] = Ac_new
 
         # Eliminar fibras nulas
-        cover_2d = cover_2d[cover_2d[:, 2] > tol_area]
-        core_2d = core_2d[core_2d[:, 2] > tol_area]
+        if cover_2d.size > 0:
+            cover_2d = cover_2d[cover_2d[:, 2] > tol_area]
 
-        # Retornar fibras 2D
+        if core_2d.size > 0:
+            core_2d = core_2d[core_2d[:, 2] > tol_area]
+
+        # Retorno 2D
         if not agrupar:
             return cover_2d[:, :3], core_2d[:, :3]
 
-        # Agrupar al formato [coord_i, A_i]
+        # Agrupar por eje
         def agrupar_fibras(fibras_2d):
-            dic = {}
+            if fibras_2d.size == 0:
+                return np.empty((0, 2), dtype=float)
 
-            for x_i, y_i, A_i in fibras_2d[:, :3]:
+            if eje == "x":
+                coords = fibras_2d[:, 1]
+            elif eje == "y":
+                coords = fibras_2d[:, 0]
 
-                if eje == "x":
-                    coord = y_i
-                else:
-                    coord = x_i
+            areas = fibras_2d[:, 2]
 
-                dic[coord] = dic.get(coord, 0) + A_i
+            coords_round = np.round(coords, 12)
+            coord_unicos, inv = np.unique(coords_round, return_inverse=True)
+            area_agrupada = np.bincount(inv, weights=areas)
 
-            return np.array(sorted(dic.items(), reverse=True), dtype=float)
+            fibras = np.column_stack((coord_unicos, area_agrupada))
+            fibras = fibras[np.argsort(fibras[:, 0])[::-1]]
+
+            return fibras
 
         cover = agrupar_fibras(cover_2d)
         core = agrupar_fibras(core_2d)

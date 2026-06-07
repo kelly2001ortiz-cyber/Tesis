@@ -41,57 +41,72 @@ class modelos:
         abs_es = np.abs(es)
         sign = np.sign(es)
 
-        # Rama elástica lineal
+        # 1. Rama elástica lineal
         z1 = abs_es <= ey
         fs[z1] = Es * es[z1]
 
-        # Rama perfectamente plástica (hasta la rotura: esu)
+        # 2. Rama perfectamente plástica (hasta la rotura: esu)
         z2 = (abs_es > ey) & (abs_es <= esu)
         fs[z2] = fy * sign[z2]
 
         return fs
 
     @staticmethod
-    def park(es, fy, fsu, Es, ey, esh, esu):
+    def park(es, fy, fsu, Es, ey, esh, esu, N=None):
         """
         Modelo de Park para acero longitudinal o transversal.
 
         Parámetros:
-            es  : deformación del acero
+            es  : deformacion del acero
             fy  : esfuerzo de fluencia
-            fsu : esfuerzo último
+            fsu : esfuerzo ultimo
             Es  : módulo elástico del acero
             ey  : deformación de fluencia
             esh : deformación de inicio de endurecimiento
-            esu : deformación última
+            esu : deformación ultima
 
         Retorna:
             fs : esfuerzo del acero
+            Et : modulo tangente del acero
         """
         es = np.asarray(es, dtype=float)
         fs = np.zeros_like(es, dtype=float)
+        Et = np.zeros_like(es, dtype=float)
+
         abs_es = np.abs(es)
         sign = np.sign(es)
 
-        # Rama elástica lineal
-        z1 = abs_es <= ey
+        # 1. Rama elastica
+        z1 = (abs_es <= ey)
+
         fs[z1] = Es * es[z1]
+        Et[z1] = Es
 
-        # Rama perfectamente plástica
+        # 2. Meseta plastica
         z2 = (abs_es > ey) & (abs_es <= esh)
-        fs[z2] = fy * sign[z2]
 
-        # Rama de endurecimiento por deformación
+        fs[z2] = fy * sign[z2]
+        Et[z2] = 0.0
+
+        # 3. Endurecimiento por deformación Park
         z3 = (abs_es > esh) & (abs_es <= esu)
+
         delta_e = abs_es[z3] - esh
         r = esu - esh
-
         m = ((fsu / fy) * (30 * r + 1)**2 - 60 * r - 1) / (15 * r**2)
+
         parte1 = (m * delta_e + 2) / (60 * delta_e + 2)
         parte2 = delta_e * (60 - m) / (2 * (30 * r + 1)**2)
-        fs[z3] = sign[z3] * fy * (parte1 + parte2)
 
-        return fs
+        fs[z3] = fy * sign[z3] * (parte1 + parte2)
+
+        # Modulo tangente del tramo Park
+        d_parte1 = (2 * m - 120) / (60 * delta_e + 2)**2
+        d_parte2 = (60 - m) / (2 * (30 * r + 1)**2)
+
+        Et[z3] = fy * (d_parte1 + d_parte2)
+
+        return fs, Et
 
     @staticmethod
     def hognestad(ec, fc0, ec0, esp, Ec, datos_h=None, N=None):
@@ -99,27 +114,33 @@ class modelos:
         Modelo de Hognestad para hormigón no confinado.
 
         Parámetros:
-            ec      : deformación del hormigón
-            fc0     : resistencia máxima a compresión
-            ec0     : deformación en fc0
-            esp     : deformación última
+            ec      : deformacion del hormigon
+            fc0     : resistencia máxima a compresion
+            ec0     : deformacion en fc0
+            esp     : deformacion ultima
             datos_h : datos adicionales mander confinado
             N       : salida preferente mander confinado
         Retorna:
-            fc : esfuerzo del hormigón
+            fc : esfuerzo del hormigon
+            Et : modulo tangente del hormigon 
         """
         ec = np.asarray(ec, dtype=float)
         fc = np.zeros_like(ec, dtype=float)
+        Et = np.zeros_like(ec, dtype=float)
 
-        # Rama ascendente parabólica
+        # 1. Rama ascendente parabólica
         z1 = (ec <= 0) & (ec >= -ec0)
-        fc[z1] = fc0 * (2 * (-ec[z1] / ec0) - (ec[z1] / ec0)**2)
-
-        # Rama descendente lineal
+        
+        fc[z1] = -fc0 * (2 * (-ec[z1] / ec0) - (ec[z1] / ec0)**2)
+        Et[z1] = 2 * fc0 / ec0 * (1 + ec[z1] / ec0)
+        
+        # 2. Rama descendente lineal
         z2 = (ec < -ec0) & (ec >= -esp)
-        fc[z2] = fc0 * (1 - 0.20 * (-ec[z2] - ec0) / (esp - ec0))
-
-        return -fc
+        
+        fc[z2] = -fc0 * (1 - 0.20 * (-ec[z2] - ec0) / (esp - ec0))
+        Et[z2] = - 0.20 * fc0 / (esp - ec0)
+        
+        return fc, Et
 
     @staticmethod
     def mander_u(ec, fc0, ec0, esp, Ec, datos_h=None, N=None):
@@ -127,39 +148,45 @@ class modelos:
         Modelo de Mander para hormigón no confinado.
 
         Parámetros:
-            ec      : deformación del hormigón
+            ec      : deformacion del hormigon
             fc0     : resistencia máxima a compresión
             ec0     : deformación en fc0
             esp     : deformación última
-            Ec      : módulo de elasticidad del hormigón
+            Ec      : módulo de elasticidad del hormigon
             datos_h : datos adicionales mander confinado
             N       : salida preferente mander confinado
 
         Retorna:
-            fc : esfuerzo del hormigón
+            fc : esfuerzo del hormigon
+            Et : modulo tangente del hormigon
         """
         ec = np.asarray(ec, dtype=float)
         fc = np.zeros_like(ec, dtype=float)
+        Et = np.zeros_like(ec, dtype=float)
 
-        # Módulo secante y parámetro r
         Esec = fc0 / ec0
         r = Ec / (Ec - Esec)
 
-        # Rama ascendente curva
+        # 1. Rama ascendente curva
         z1 = (ec <= 0) & (ec >= -2*ec0)
-        x = ec[z1] / -ec0
-        fc[z1] = fc0 * (x * r) / (r - 1 + x**r)
+        x = -ec[z1] / ec0
 
-        # Rama descendente lineal
-        z2 = (ec >= -esp) & (ec < -2*ec0)
-        fc[z2] = fc0 * (2 * r) / (r - 1 + 2**r) * (esp + ec[z2]) / (esp - 2*ec0)
+        fc[z1] = -fc0 * (x * r) / (r - 1 + x**r)
+        Et[z1] = (fc0 / ec0) * (r * (r - 1) * (1 - x**r) / ((r - 1 + x**r)**2))
 
-        return -fc
+        # 2. Rama descendente lineal
+        z2 = (ec < -2*ec0) & (ec >= -esp)
+        fc2 = fc0 * (2 * r) / (r - 1 + 2**r)
+        
+        fc[z2] = -fc2 * (esp + ec[z2]) / (esp - 2*ec0)
+        Et[z2] = -fc2 / (esp - 2*ec0)
+
+        return fc, Et
 
     @staticmethod
     def mander_c(ec, fc0, ec0, esp, Ec, datos_h=None, N=None):
         """
-        Modelo de Mander para hormigóSn confinado.
+        Modelo de Mander para hormigón confinado.
 
         Parámetros:
             ec      : deformación del hormigón
@@ -170,12 +197,19 @@ class modelos:
             datos_h : tupla con:
                       (fyh, b, h, r, Sc, de, d_corner, d_edge, nb, nr_x, nr_y, ecu, fcc)
             N       : selector de salida
-                      N = 1 o None -> esfuerzo del hormigón
-                      N = 2        -> retorna fc, psh, Acc, pcc
-                      N = 3        -> retorna solo fcc
 
         Retorna:
             según N
+                N = 1 o None
+                    fc  : esfuerzo del hormigon
+                    Et  : modulo tangente del hormigon
+                N = 2
+                    fc  : esfuerzo del hormigon (signo invertdo)
+                    psh : cuantia de acero transversal
+                    Acc : area confinada
+                    pcc : cuantia del acero longitudinal
+                N = 3
+                    fcc : esfuerzo del hormigon confinado
         """
         fyh, b, h, r, Sc, de, d_corner, d_edge, nb, nr_x, nr_y, ecu, fcc = datos_h
 
@@ -183,8 +217,8 @@ class modelos:
             """
             Calcula fcc según superficie de falla de Mander para confinamiento biaxial.
 
-            flx, fly : presiones laterales efectivas positivas
-            fc0      : resistencia no confinada positiva
+            flx, fly : presion lateral efectiva
+            fc0      : resistencia no confinada
             
             """
             fl1 = min(flx, fly)
@@ -199,7 +233,7 @@ class modelos:
             
             return fcc
 
-        # Dimensiones del núcleo
+        # Dimensiones del núcleo al eje del estribo
         dc = h - 2 * r - de
         bc = b - 2 * r - de
         Ss = Sc - de
@@ -210,19 +244,22 @@ class modelos:
 
         Ainef = (2 * (nr_y - 1) * (Wx**2) / 6) + (2 * (nr_x - 1) * Wy**2 / 6)
 
-        # Área efectiva confinada
+        # Area efectiva confinada
         Ac = bc * dc
         Ae = (Ac - Ainef) * (1 - Ss / (2 * bc)) * (1 - Ss / (2 * dc))
 
-        # Cuantía longitudinal
-        AsL = np.pi * (d_corner**2 + (nb - 4) * d_edge**2 / 4)
+        # Cuantia longitudinal
+        Ab_corner = np.pi * d_corner**2 / 4
+        Ab_edge = np.pi * d_edge**2 / 4
+
+        AsL = 4 * Ab_corner + (nb - 4) * Ab_edge
         Acc = Ac - AsL
         pcc = AsL / Acc
 
         # Coeficiente de confinamiento efectivo
         Ke = Ae / Acc
 
-        # Presión lateral de confinamiento
+        # Presion lateral de confinamiento
         Ash = np.pi * de**2 / 4
         Ashx = nr_x * Ash
         Ashy = nr_y * Ash
@@ -240,57 +277,59 @@ class modelos:
         if N == 3:
             return fcc
 
-        # Deformación en resistencia máxima confinada
+        # Deformacion en resistencia maxima confinada
         ecc = ec0 * (1 + 5 * (fcc / fc0 - 1))
         Esec = fcc / ecc
         r = Ec / (Ec - Esec)
 
-        # Cuantía volumétrica de estribos
+        # Cuantia volumetrica de estribos
         psh = pshx + pshy
 
-        # Convención: compresión negativa en entrada
+        # Convencion: compresión negativa en entrada
         ec = np.asarray(ec, dtype=float)
         fc = np.zeros_like(ec, dtype=float)
+        Et = np.zeros_like(ec, dtype=float)
 
         z1 = (ec <= 0) & (ec >= -ecu)
         x = -ec[z1] / ecc
-        fc[z1] = fcc * (x * r) / (r - 1 + x**r)
 
+        fc[z1] = -fcc * (x * r) / (r - 1 + x**r)
+        Et[z1] = (fcc / ecc) * (r * (r - 1) * (1 - x**r) / ((r - 1 + x**r)**2)) 
+                
         if N == 2:
-            return fc, psh, Acc, pcc
+            return -fc, psh, Acc, pcc
 
-        return -fc
+        return fc, Et
 
     @staticmethod
     def buscar_ecu(fc0, ec0, esp, Ec, fy, fsu, Es, ey, esh, esu, datos_h):
         """
-        Busca la deformación última del hormigón confinado ecu
-        mediante equilibrio energético.
+        Busca la deformacion ultima del hormigon confinado ecu mediante equilibrio energetico.
 
-        Parámetros:
-            fc0, ec0, esp, Ec : parámetros del hormigón
-            fy, fsu, Es, ey, esh, esu : parámetros del acero transversal/longitudinal
+        Parametros:
+            fc0, ec0, esp, Ec : parametros del hormigon
+            fy, fsu, Es, ey, esh, esu : parametros del acero transversal/longitudinal
             datos_h : tupla de datos para mander_c:
                       (fyh, b, h, r, Sc, de, d_corner, d_edge, nb, nr_x, nr_y, ecu, fcc)
 
         Retorna:
-            ecu : deformación última del hormigón confinado
+            ecu : deformacion ultima del hormigon confinado
         """
         n = 101
-        # Hormigón no confinado
+        # Hormigon no confinado
         ec_uc = np.empty(n)
         ec_uc = np.linspace(-2 * ec0, 0.0, n-1)
         ec_uc = np.concatenate((ec_uc, [-esp]))
         ec_uc.sort()
 
-        fc_uc = modelos.mander_u(ec_uc, fc0, ec0, esp, Ec, datos_h, 0)
+        fc_uc = modelos.mander_u(ec_uc, fc0, ec0, esp, Ec, datos_h, 0)[0]
         A_uc = -simpson(fc_uc, x=ec_uc)
 
         # Acero transversal
         es_sh = np.linspace(0.0, esu, n-2)
         es_sh = np.concatenate((es_sh, [esh, ey]))
         es_sh.sort()
-        fs_sh = modelos.park(es_sh, fy, fsu, Es, ey, esh, esu)
+        fs_sh = modelos.park(es_sh, fy, fsu, Es, ey, esh, esu)[0]
         A_sh = simpson(fs_sh, x=es_sh)
 
         fyh, b, h, r, Sc, de, d_corner, d_edge, nb, nr_x, nr_y, _, fcc = datos_h
@@ -298,12 +337,12 @@ class modelos:
         def f(ecu):
             datos_h_ecu = (fyh, b, h, r, Sc, de, d_corner, d_edge, nb, nr_x, nr_y, ecu, fcc)
 
-            # Hormigón confinado hasta ecu
+            # Hormigon confinado hasta ecu
             ec_cc = np.linspace(-ecu, 0.0, n)
             fc_cc, psh, Acc, pcc = modelos.mander_c(ec_cc, fc0, ec0, esp, Ec, datos_h_ecu, 2)
             A_cc = simpson(fc_cc, x=ec_cc)
 
-            # Balance de energía: Ucc - Uco - Ush
+            # Balance de energia: Ucc - Uco - Ush
             Ush = Acc * psh * A_sh
             Uco = Acc * A_uc
             Ucc = Acc * A_cc

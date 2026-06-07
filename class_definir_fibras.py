@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QDialog
+from PySide6.QtWidgets import QDialog, QButtonGroup
 from ui_definir_fibras import Ui_definir_fibras
 from validation_utils2 import (
     ErrorFloatingLabel,
@@ -8,8 +8,8 @@ from validation_utils2 import (
 )
 
 class VentanaDefinirFibras(QDialog):
-    def __init__(self, fibras_data, callback_actualizar=None, parent=None):  # <<< nuevo: parent
-        super().__init__(parent)  # <<< nuevo: mantener referencia al padre
+    def __init__(self, fibras_data, callback_actualizar=None, parent=None):
+        super().__init__(parent)
         self.ui = Ui_definir_fibras()
         self.ui.setupUi(self)
         self.setFixedSize(self.size())
@@ -22,12 +22,22 @@ class VentanaDefinirFibras(QDialog):
         self.ui.fibras_x.setText(self.fibras_data.get("fibras_x", ""))
         self.ui.fibras_y.setText(self.fibras_data.get("fibras_y", ""))
 
-        # --- Validación en tiempo real + tooltip de error ---
+        # Checkboxes de confinamiento
+        self.grupo_confinamiento = QButtonGroup(self)
+        self.grupo_confinamiento.setExclusive(True)
+        self.grupo_confinamiento.addButton(self.ui.checkBox)
+        self.grupo_confinamiento.addButton(self.ui.checkBox_2)
+
+        confinado = self._leer_bool(self.fibras_data.get("confinado", False))
+        self.ui.checkBox.setChecked(confinado)
+        self.ui.checkBox_2.setChecked(not confinado)
+
+        # --- Validacion en tiempo real + tooltip de error ---
         self._error_label = ErrorFloatingLabel(self)  # etiqueta flotante reutilizable
         self._campos_invalidos = {}
 
         for le in (self.ui.fibras_x, self.ui.fibras_y):
-            # Validación reactiva mientras escribe
+            # Validacion reactiva mientras escribe
             le.textChanged.connect(lambda _=None, le=le: self._validar_campo(le))
             # Normaliza/ajusta al salir del campo
             le.editingFinished.connect(lambda le=le: self._normalizar_minimo_entero(le, minimo=3))
@@ -35,8 +45,19 @@ class VentanaDefinirFibras(QDialog):
             self._instalar_eventos_tooltip(le)
 
         # Botones
-        self.ui.btn_ok_fibras.clicked.connect(self.guardar_datos)   # guarda y cierra + ahora dibuja fibras
-        self.ui.btn_cancelar_fibras.clicked.connect(self.reject)    # NO guarda, solo cierra
+        self.ui.btn_ok_fibras.clicked.connect(self.guardar_datos)
+        self.ui.btn_cancelar_fibras.clicked.connect(self.reject)
+
+    # ---------- Utilidades ----------
+    def _leer_bool(self, valor):
+        """Convierte valores tipo bool/int/str a booleano real."""
+        if isinstance(valor, bool):
+            return valor
+        if isinstance(valor, (int, float)):
+            return bool(valor)
+        if isinstance(valor, str):
+            return valor.strip().lower() in ("1", "true", "si", "sí", "yes", "y", "on")
+        return False
 
     # ---------- Utilidades UI ----------
     def _instalar_eventos_tooltip(self, line_edit):
@@ -60,9 +81,9 @@ class VentanaDefinirFibras(QDialog):
         line_edit.enterEvent = enterEvent
         line_edit.leaveEvent = leaveEvent
 
-    # ---------- Validación / Normalización ----------
+    # ---------- Validacion / Normalizacion ----------
     def _validar_campo(self, line_edit):
-        """Exige: número entero >= 3."""
+        """Exige: numero entero >= 3."""
         texto = line_edit.text()
         valor = parsear_numero(texto)
         valido = valor is not None and valor >= 3 and float(valor).is_integer()
@@ -78,10 +99,8 @@ class VentanaDefinirFibras(QDialog):
 
     def _normalizar_minimo_entero(self, line_edit, minimo=3):
         """
-        Reutiliza tu parseo/formato, pero aplica regla local:
         - Redondea a entero
-        - Fuerza mínimo = 3 para fibras_x y fibras_y
-        (No toca el diccionario hasta guardar.)
+        - Fuerza minimo = 3 para fibras_x y fibras_y
         """
         texto_original = line_edit.text()
         valor = parsear_numero(texto_original)
@@ -89,7 +108,6 @@ class VentanaDefinirFibras(QDialog):
         if valor is None:
             return
 
-        # Redondear y forzar mínimo
         valor = int(round(valor))
         if valor < minimo:
             valor = minimo
@@ -106,34 +124,30 @@ class VentanaDefinirFibras(QDialog):
             if self._campos_invalidos.get(le, False):
                 mostrar_mensaje_error_flotante(le, self._error_label)
 
-        # Si hay inválidos, no cerrar ni guardar
         if any(self._campos_invalidos.get(le, False) for le in (self.ui.fibras_x, self.ui.fibras_y)):
             return
 
-        # Normaliza definitivamente (por si el usuario no salió del campo)
         self._normalizar_minimo_entero(self.ui.fibras_x, minimo=3)
         self._normalizar_minimo_entero(self.ui.fibras_y, minimo=3)
 
-        # >>> AQUÍ recién se escriben los cambios en el diccionario <<<
         self.fibras_data["fibras_x"] = self.ui.fibras_x.text()
         self.fibras_data["fibras_y"] = self.ui.fibras_y.text()
+
+        # checkBox marcado   -> confinado = True
+        self.fibras_data["confinado"] = bool(self.ui.checkBox.isChecked())
 
         # Avisar a la ventana principal (opcional)
         if self.callback_actualizar:
             self.callback_actualizar(self.fibras_data)
 
-        # <<< NUEVO: dibujar inmediatamente las fibras en el frame de la ventana principal
         padre = self.parent()
         if padre is not None and hasattr(padre, "mostrar_fibras"):
-            # Tu mostrar_fibras solo dibuja si la acción "Capas de Fibras" está marcada:contentReference[oaicite:1]{index=1},
-            # así que nos aseguramos de activarla antes:
             try:
                 accion = getattr(padre.ui, "actionCapas_de_Fibras_2", None)
                 if accion is not None and hasattr(accion, "setChecked"):
                     accion.setChecked(True)
                 padre.mostrar_fibras()
             except Exception:
-                # No interrumpimos el cierre del diálogo por un error de dibujo
                 pass
 
         self.accept()
