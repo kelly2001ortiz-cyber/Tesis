@@ -1,8 +1,7 @@
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel
 from ui_mostrar_MC import Ui_mostrar_MC
 from class_mostrar_tabla import VentanaMostrarTabla
-from vista_dinamica_seccion_columna import SeccionColumnaGrafico
-from vista_dinamica_seccion_viga import SeccionVigaGrafico
+from class_mostrar_seccion import class_mostrar_seccion
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT
@@ -92,24 +91,7 @@ class VentanaMostrarMC(QDialog):
         self._tipo_seccion = (tipo_seccion or "").strip().lower()
 
         # --------- Dibuja la sección ----------
-        if self._tipo_seccion == "columna":
-            SeccionColumnaGrafico(
-                self.ui.cuadricula_seccionMC,
-                (seccion_columna_data or {}).copy(),
-                ui=None,
-                mostrar_toolbar=False,
-                mostrar_coords=False,
-                show_highlight=False,
-            )
-        else:
-            SeccionVigaGrafico(
-                self.ui.cuadricula_seccionMC,
-                (seccion_viga_data or {}).copy(),
-                ui=None,
-                mostrar_toolbar=False,
-                mostrar_coords=False,
-                show_highlight=False,
-            )
+        self._dibujar_seccion_mc(seccion_columna_data, seccion_viga_data)
 
         # Figura y Canvas
         self.figure = Figure()
@@ -167,6 +149,54 @@ class VentanaMostrarMC(QDialog):
         self.ui.btn_mostrar_tablaMC.clicked.connect(self.mostrar_tabla)
         self.ui.btn_mostrar_parmetros.clicked.connect(self.mostrar_parametros)
 
+    def _dibujar_seccion_mc(self, seccion_columna_data, seccion_viga_data):
+        class UIProxy:
+            pass
+
+        class ComboProxy:
+            def __init__(self, texto):
+                self._texto = texto
+
+            def currentText(self):
+                return self._texto
+
+        ui_proxy = UIProxy()
+        ui_proxy.cuadricula_seccion = self.ui.cuadricula_seccionMC
+        ui_proxy.seccion_analisis = ComboProxy(
+            "Columna" if self._tipo_seccion == "columna" else "Viga"
+        )
+
+        datos_seccion = (
+            seccion_columna_data
+            if self._tipo_seccion == "columna"
+            else seccion_viga_data
+        )
+
+        visor = class_mostrar_seccion(
+            ui_proxy,
+            seccion_columna_data or {},
+            seccion_viga_data or {},
+            {"fibras_x": "10", "fibras_y": "10"},
+            datos_seccion or {},
+        )
+
+        visor.mostrar()
+        self._visor_seccion = visor
+
+        grafico = getattr(visor, "_fib_widget", None)
+        if grafico is not None:
+            if hasattr(grafico, "toolbar"):
+                grafico.toolbar.setVisible(False)
+
+            if hasattr(grafico, "label"):
+                grafico.label.setVisible(False)
+
+            try:
+                grafico.highlight_ms = 0
+                grafico.pix_tol = 0
+            except Exception:
+                pass
+                
     def mostrar_tabla(self):
         checks, etiquetas = self._checks_y_etiquetas()
 

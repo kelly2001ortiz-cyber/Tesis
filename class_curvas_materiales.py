@@ -22,7 +22,7 @@ class CurvasMateriales:
         es = np.linspace(-esu, esu, 96)
         es = np.concatenate((es, [-esh, esh, -ey, ey]))
         es.sort()
-        fs = modelos.park(es, fy, fsu, Es, ey, esh, esu)
+        fs, _ = modelos.park(es, fy, fsu, Es, ey, esh, esu)
         return es, fs
 
     def hognestad(self):
@@ -32,7 +32,7 @@ class CurvasMateriales:
         esp = self._f(self.datos_hormigon, "def_ultima_sin_confinar")
 
         ec = np.linspace(-esp, 0.0, 100)
-        fc = modelos.hognestad(ec, fc0, ec0, esp, Ec)
+        fc, _ = modelos.hognestad(ec, fc0, ec0, esp, Ec)
         return -ec, -fc
 
     def mander_no_confinado(self):
@@ -42,7 +42,7 @@ class CurvasMateriales:
         esp = self._f(self.datos_hormigon, "def_ultima_sin_confinar")
 
         ec = np.linspace(-esp, 0.0, 100)
-        fc = modelos.mander_u(ec, fc0, ec0, esp, Ec)
+        fc, _ = modelos.mander_u(ec, fc0, ec0, esp, Ec)
         return -ec, -fc
 
     def mander_confinado(self):
@@ -92,5 +92,5 @@ class CurvasMateriales:
         datos_h = (fyh, b, h, r, Sc, de, d_corner, d_edge, nb, nl_x, nl_y, ecu, fcc)
 
         ec = np.linspace(-ecu, 0.0, 100)
-        fc = modelos.mander_c(ec, fc0, ec0, esp, Ec, datos_h, 1)
+        fc, _ = modelos.mander_c(ec, fc0, ec0, esp, Ec, datos_h, 1)
         return -ec, -fc

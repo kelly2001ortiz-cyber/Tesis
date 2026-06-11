@@ -52,9 +52,16 @@ class SeccionColumnaController(QObject):  # <--- Ahora hereda de QObject
             if campo is self.ui.disenar_columna_axial:
                 campo.editingFinished.connect(self._on_editing_finished_axial)
             else:
-                campo.editingFinished.connect(lambda le=campo: corregir_y_normalizar(le))
+                campo.editingFinished.connect(lambda le=campo: self._finalizar_edicion(le))
             campo.installEventFilter(self)  # <-- ¡Ya funciona!
 
+    def _finalizar_edicion(self, line_edit):
+        corregir_y_normalizar(line_edit)
+
+        owner = getattr(self.ui, "_owner", None)
+        if owner is not None and hasattr(owner, "redibujar_columna_desde_ui"):
+            owner.redibujar_columna_desde_ui()
+            
     def eventFilter(self, obj, event):
         if obj in self.campos_a_validar:
             if event.type() == QEvent.Enter:

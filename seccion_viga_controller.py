@@ -48,9 +48,16 @@ class SeccionVigaController(QObject):  # <--- Ahora hereda de QObject
                 campo.editingFinished.disconnect()
             except Exception:
                 pass
-            campo.editingFinished.connect(lambda le=campo: corregir_y_normalizar(le))
+            campo.editingFinished.connect(lambda le=campo: self._finalizar_edicion(le))
             campo.installEventFilter(self)  # <-- ¡Ya funciona!
 
+    def _finalizar_edicion(self, line_edit):
+        corregir_y_normalizar(line_edit)
+
+        owner = getattr(self.ui, "_owner", None)
+        if owner is not None and hasattr(owner, "redibujar_viga_desde_ui"):
+            owner.redibujar_viga_desde_ui()
+            
     def eventFilter(self, obj, event):
         if obj in self.campos_a_validar:
             if event.type() == QEvent.Enter:

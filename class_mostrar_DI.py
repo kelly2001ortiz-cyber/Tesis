@@ -2,7 +2,7 @@
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QTableWidgetItem, QSizePolicy
 from PySide6.QtCore import Qt, QSignalBlocker, QEvent
 from ui_mostrar_DI import Ui_mostrar_DI
-from vista_dinamica_seccion_columna import SeccionColumnaGrafico
+from class_mostrar_seccion import class_mostrar_seccion
 from class_mostrar_tabla import VentanaMostrarTabla
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
@@ -43,14 +43,7 @@ class VentanaMostrarDI(QDialog):
         self._series = di_series or {}
 
         # --------- Dibuja la sección ----------
-        SeccionColumnaGrafico(
-            self.ui.cuadricula_seccionDI,
-            (seccion_columna_data or {}).copy(),
-            ui=None,
-            mostrar_toolbar=False,
-            mostrar_coords=False,
-            show_highlight=False,
-        )
+        self._dibujar_seccion_di(seccion_columna_data)
 
         # --- Hacer que la sección se vea grande y llene el frame ---
         cont = self.ui.cuadricula_seccionDI
@@ -126,6 +119,43 @@ class VentanaMostrarDI(QDialog):
         self._hover_cid = self.canvas.mpl_connect("motion_notify_event", self.on_mouse_move)
         self._draw_cid = self.canvas.mpl_connect("draw_event", self._recalc_disp_coords)
 
+    def _dibujar_seccion_di(self, seccion_columna_data):
+        class UIProxy:
+            pass
+
+        class ComboProxy:
+            def currentText(self):
+                return "Columna"
+
+        ui_proxy = UIProxy()
+        ui_proxy.cuadricula_seccion = self.ui.cuadricula_seccionDI
+        ui_proxy.seccion_analisis = ComboProxy()
+
+        visor = class_mostrar_seccion(
+            ui_proxy,
+            seccion_columna_data or {},
+            {},
+            {"fibras_x": "10", "fibras_y": "10"},
+            seccion_columna_data or {},
+        )
+
+        visor.mostrar()
+        self._visor_seccion = visor
+
+        grafico = getattr(visor, "_fib_widget", None)
+        if grafico is not None:
+            if hasattr(grafico, "toolbar"):
+                grafico.toolbar.setVisible(False)
+
+            if hasattr(grafico, "label"):
+                grafico.label.setVisible(False)
+
+            try:
+                grafico.highlight_ms = 0
+                grafico.pix_tol = 0
+            except Exception:
+                pass
+            
     # ---------- Event filter para la sección (agrandar canvas) ----------
     def eventFilter(self, obj, event):
         if obj is self.ui.cuadricula_seccionDI and event.type() == QEvent.Resize:

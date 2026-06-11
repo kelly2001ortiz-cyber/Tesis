@@ -16,16 +16,13 @@ from class_material_hormigon import VentanaMaterialHormigon
 from class_material_acero import VentanaMaterialAcero
 from class_definir_fibras import VentanaDefinirFibras
 from seccion_columna_controller import SeccionColumnaController
-from vista_dinamica_seccion_columna import SeccionColumnaGrafico
 from seccion_viga_controller import SeccionVigaController
-from vista_dinamica_seccion_viga import SeccionVigaGrafico
+from class_mostrar_seccion import class_mostrar_seccion
 from class_definir_asce import VentanaDefinirASCE
 from class_calcular_asce import CalculadoraASCE
-#from momento_curvatura import calcular_resultados_seccion
 from momento_curvatura_nuevo import calcular_resultados_seccion
 from mostrar_mc_dialog import VentanaMostrarMC
 from class_mostrar_DI import VentanaMostrarDI
-from class_mostrar_fibras import class_mostrar_fibras
 
 # ---------------- Ventanas auxiliares ----------------
 
@@ -401,29 +398,56 @@ class VentanaPrincipal(QMainWindow):
             self.mostrar_viga()
             self.ui.texto_seccion.setText("VIGA")
 
-    def mostrar_fibras(self):
-        """Dibuja la sección de fibras dentro de ui.cuadricula_seccion SIN cambiar de página."""
-        if self.ui.actionCapas_de_Fibras_2.isChecked():
-            seccion_actual = (self.ui.seccion_analisis.currentText() or "").strip().lower()
-            datos_seccion = self.seccion_viga_data if seccion_actual == "viga" else self.seccion_columna_data
+    def mostrar_grafico_seccion(self, mostrar_rejilla=False):
+        visor = class_mostrar_seccion(
+            self.ui,
+            self.seccion_columna_data,
+            self.seccion_viga_data,
+            self.capas_fibras_data,
+            self.seccion_columna_data
+            if (self.ui.seccion_analisis.currentText() or "").strip().lower() == "columna"
+            else self.seccion_viga_data,
+        )
 
-            visor = class_mostrar_fibras(
+        visor.mostrar()
+        self._visor_seccion = visor
+        
+    def mostrar_fibras(self):
+        """Dibuja la malla de fibras dentro de ui.cuadricula_seccion."""
+        if self.ui.actionCapas_de_Fibras_2.isChecked():
+            tipo = (self.ui.seccion_analisis.currentText() or "").strip().lower()
+            datos_seccion = (
+                self.seccion_columna_data
+                if tipo == "columna"
+                else self.seccion_viga_data
+            )
+            confinado = bool(self.capas_fibras_data.get("confinado", False))
+            visor = class_mostrar_seccion(
                 self.ui,
                 self.seccion_columna_data,
                 self.seccion_viga_data,
                 self.capas_fibras_data,
                 datos_seccion,
+                config={
+                    "seccion": True,
+                    "armado": False,
+                    "rejilla": True,
+                    "ejes": True,
+                    "confinado": confinado,
+                },
             )
+
             visor.mostrar()
-            self._visor_fibras = visor  # mantener referencia
+            self._visor_fibras = visor
         else:
             self._quitar_widget_fibras()
+
             texto = self.ui.seccion_analisis.currentText()
             if texto.lower() == "columna":
                 self.mostrar_columna()
             elif texto.lower() == "viga":
                 self.mostrar_viga()
-
+                
     def _quitar_widget_fibras(self):
         """Remueve el widget de fibras del contenedor y libera memoria."""
         try:
@@ -619,6 +643,51 @@ class VentanaPrincipal(QMainWindow):
         elif texto.lower() == "viga":
             self.mostrar_viga()
 
+    def redibujar_columna_desde_ui(self):
+        self.seccion_columna_data.update({
+            "disenar_columna_base": self.ui.disenar_columna_base.text(),
+            "disenar_columna_altura": self.ui.disenar_columna_altura.text(),
+            "disenar_columna_varillasX_2": self.ui.disenar_columna_varillasX_2.text(),
+            "disenar_columna_varillasY_2": self.ui.disenar_columna_varillasY_2.text(),
+            "disenar_columna_diametro_longitudinal_2": self.ui.disenar_columna_diametro_longitudinal_2.text(),
+            "disenar_columna_recubrimiento": self.ui.disenar_columna_recubrimiento.text(),
+            "disenar_columna_ramalesX": self.ui.disenar_columna_ramalesX.text(),
+            "disenar_columna_ramalesY": self.ui.disenar_columna_ramalesY.text(),
+            "disenar_columna_diametro_transversal": self.ui.disenar_columna_diametro_transversal.text(),
+            "disenar_columna_espaciamiento": self.ui.disenar_columna_espaciamiento.text(),
+            "disenar_columna_diametro_longitudinal_esq": self.ui.disenar_columna_diametro_longitudinal_esq.text(),
+            "disenar_columna_axial": self.ui.disenar_columna_axial.text(),
+        })
+
+        if (self.ui.seccion_analisis.currentText() or "").strip().lower() == "columna":
+            self.mostrar_grafico_seccion()
+            self.propiedades_columna()
+
+        self.invalidar_resultados_y_apagar_fibras()
+        self._invalidar_asce_persistencia()
+        self._mark_dirty()
+
+    def redibujar_viga_desde_ui(self):
+        self.seccion_viga_data.update({
+            "disenar_viga_base": self.ui.disenar_viga_base.text(),
+            "disenar_viga_altura": self.ui.disenar_viga_altura.text(),
+            "disenar_viga_recubrimiento": self.ui.disenar_viga_recubrimiento.text(),
+            "disenar_viga_varillas_inferior": self.ui.disenar_viga_varillas_inferior.text(),
+            "disenar_viga_diametro_inferior": self.ui.disenar_viga_diametro_inferior.text(),
+            "disenar_viga_varillas_superior": self.ui.disenar_viga_varillas_superior.text(),
+            "disenar_viga_diametro_superior": self.ui.disenar_viga_diametro_superior.text(),
+            "disenar_viga_diametro_transversal": self.ui.disenar_viga_diametro_transversal.text(),
+            "disenar_viga_espaciamiento": self.ui.disenar_viga_espaciamiento.text(),
+        })
+
+        if (self.ui.seccion_analisis.currentText() or "").strip().lower() == "viga":
+            self.mostrar_grafico_seccion()
+            self.propiedades_viga()
+
+        self.invalidar_resultados_y_apagar_fibras()
+        self._invalidar_asce_persistencia()
+        self._mark_dirty()
+        
     @Slot()
     def mostrar_columna(self):
         self.ui.stackedWidget_seccion.setCurrentWidget(self.ui.pg_columna)
@@ -626,7 +695,8 @@ class VentanaPrincipal(QMainWindow):
             self.ui, self.seccion_columna_data, self._wrap_dirty(self.actualizar_seccion_columna_data)
         )
         self.ui.disenar_columna_nombre.setText(str(self.proyecto_data.get("descripcion_seccion", "")))
-        SeccionColumnaGrafico(self.ui.cuadricula_seccion, self.seccion_columna_data, ui=self.ui, show_highlight=True)
+        #SeccionColumnaGrafico(self.ui.cuadricula_seccion, self.seccion_columna_data, ui=self.ui, show_highlight=True)
+        self.mostrar_grafico_seccion()
         self.propiedades_columna()
         # <<< conecta todos los lineedit de pg_columna
         self._wire_dirty_lineedits(self.ui.pg_columna)
@@ -646,6 +716,8 @@ class VentanaPrincipal(QMainWindow):
 
     def actualizar_seccion_columna_data(self, datos):
         self.seccion_columna_data = datos.copy()
+        self.mostrar_grafico_seccion()
+        self.propiedades_columna()
 
         direccion_txt = self.ui.direccion_analisis.currentText().strip().lower()
         eje = "x" if direccion_txt.endswith("x") else "y"
@@ -679,7 +751,8 @@ class VentanaPrincipal(QMainWindow):
             self.ui, self.seccion_viga_data, self._wrap_dirty(self.actualizar_seccion_viga_data)
         )
         self.ui.disenar_viga_nombre.setText(str(self.proyecto_data.get("descripcion_seccion", "")))
-        SeccionVigaGrafico(self.ui.cuadricula_seccion, self.seccion_viga_data, ui=self.ui, show_highlight=True)
+        #SeccionVigaGrafico(self.ui.cuadricula_seccion, self.seccion_viga_data, ui=self.ui, show_highlight=True)
+        self.mostrar_grafico_seccion()
         self.propiedades_viga()
         # <<< conecta todos los lineedit de pg_viga
         self._wire_dirty_lineedits(self.ui.pg_viga)
@@ -704,6 +777,8 @@ class VentanaPrincipal(QMainWindow):
 
     def actualizar_seccion_viga_data(self, datos):
         self.seccion_viga_data = datos.copy()
+        self.mostrar_grafico_seccion()
+        self.propiedades_viga()
 
         resultados = calcular_resultados_seccion(
             datos_hormigon=self.material_hormigon_data,
